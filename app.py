@@ -28,9 +28,10 @@ tabs = st.tabs(["Upload & Forecast", "CTR Controls", "Project Launch Dates"])
 with tabs[1]:
     st.header("CTR Controls")
 
-    edit_mode = st.checkbox("Enable Edit Mode")
+    col1, col2 = st.columns(2)
 
-    if edit_mode:
+    with col1:
+        st.subheader("CTR by Position")
         edited_ctr = st.data_editor(
             st.session_state.ctr_df.copy(),
             num_rows="dynamic",
@@ -38,6 +39,8 @@ with tabs[1]:
             key="edit_ctr_table"
         )
 
+    with col2:
+        st.subheader("Seasonality by Month")
         edited_seasonality = st.data_editor(
             st.session_state.seasonality_df.copy(),
             num_rows="fixed",
@@ -45,34 +48,29 @@ with tabs[1]:
             key="edit_seasonality"
         )
 
-        if st.button("Save Changes"):
-            st.session_state.ctr_df = edited_ctr.copy()
-            st.session_state.seasonality_df = edited_seasonality.copy()
-            st.success("Changes saved and applied to forecast.")
-    else:
-        st.dataframe(st.session_state.ctr_df, use_container_width=True)
-        st.dataframe(st.session_state.seasonality_df, use_container_width=True)
+    col3, col4 = st.columns(2)
+    with col3:
+        fs_ctr = st.number_input("CTR for Featured Snippet (%)", min_value=0.0, max_value=100.0, value=18.0)
+    with col4:
+        aio_ctr = st.number_input("CTR for AI Overview (%)", min_value=0.0, max_value=100.0, value=12.0)
 
-    fs_ctr = st.number_input("CTR for Featured Snippet (%)", min_value=0.0, max_value=100.0, value=18.0)
-    aio_ctr = st.number_input("CTR for AI Overview (%)", min_value=0.0, max_value=100.0, value=12.0)
+    if st.button("Save Changes"):
+        st.session_state.ctr_df = edited_ctr.copy()
+        st.session_state.seasonality_df = edited_seasonality.copy()
+        st.success("Changes saved and applied to forecast.")", min_value=0.0, max_value=100.0, value=12.0)
 
 
 with tabs[2]:
     st.header("Project Launch Dates")
-    edit_mode_launch = st.checkbox("Enable Edit Mode", key="launch_edit")
-
-    if edit_mode_launch:
-        edited_launch = st.data_editor(
-            st.session_state.launch_month_df.copy(),
+    if st.session_state.launch_month_df.empty:
+        st.info("No launch months to display yet. Upload keyword data first.")
+    else:
+        st.data_editor(
+            st.session_state.launch_month_df,
             num_rows="dynamic",
             use_container_width=True,
-            key="edit_launch_month"
-        )
-        if st.button("Save Launch Dates"):
-            st.session_state.launch_month_df = edited_launch.copy()
-            st.success("Launch months updated.")
-    elif not st.session_state.launch_month_df.empty:
-        st.dataframe(st.session_state.launch_month_df, use_container_width=True)
+            key="launch_month_editor"
+        )(st.session_state.launch_month_df, use_container_width=True)
 
 
 with tabs[0]:
