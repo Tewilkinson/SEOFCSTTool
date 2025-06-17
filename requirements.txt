@@ -3,4 +3,4 @@ pandas
 numpy
 openpyxl
 plotly
-aggrid
+streamlit-aggrid
