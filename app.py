@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import io
+import plotly.express as px
 
 # --- App Config ---
 st.set_page_config(page_title="SEO Forecast Tool", layout="wide")
@@ -123,6 +124,18 @@ with tabs[0]:
         forecast_df = pd.DataFrame(forecast_results)
 
         st.subheader("Traffic Forecast")
+
+        # Plot Forecast Clicks Over Time
+        chart = px.line(
+            forecast_df,
+            x="Month",
+            y="Forecast Clicks",
+            color="Keyword",
+            title="Projected Traffic Over Time by Keyword",
+            markers=True
+        )
+        st.plotly_chart(chart, use_container_width=True)
+
         st.dataframe(forecast_df, use_container_width=True)
 
         csv = forecast_df.to_csv(index=False).encode('utf-8')
