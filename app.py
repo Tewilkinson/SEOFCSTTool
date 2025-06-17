@@ -100,9 +100,9 @@ with tabs[0]:
                 pos = max(1, pos - monthly_gain)
                 pos_int = int(round(pos))
 
-                if has_aio:
+                if pos_int == 1 and has_aio:
                     ctr = aio_ctr
-                elif has_fs:
+                elif pos_int == 1 and has_fs:
                     ctr = fs_ctr
                 else:
                     ctr = get_ctr_for_position(pos_int)
