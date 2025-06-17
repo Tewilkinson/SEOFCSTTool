@@ -23,16 +23,23 @@ if "launch_month_df" not in st.session_state:
     st.session_state.launch_month_df = pd.DataFrame(columns=["Project", "Launch Month"])
 
 # --- Tabs Layout ---
-tabs = st.tabs(["Upload & Forecast", "CTR Controls"])
+tabs = st.tabs(["Upload & Forecast", "CTR Controls", "Project Launch Dates"])
 
-with tabs[1]:
-    st.header("CTR Controls")
+with tabs[2]:
+    st.header("Project Launch Dates")
+    edit_mode_launch = st.checkbox("Enable Edit Mode", key="launch_edit")
 
-    edit_mode = st.checkbox("Enable Edit Mode")
-
-    if edit_mode:
-        edited_ctr = st.data_editor(
-            st.session_state.ctr_df.copy(),
+    if edit_mode_launch:
+        edited_launch = st.data_editor(
+            st.session_state.launch_month_df.copy(),
+            num_rows="dynamic",
+            use_container_width=True,
+            key="edit_launch_month"
+        )
+        if st.button("Save Launch Dates"):
+            st.session_state.launch_month_df = edited_launch.copy()
+            st.success("Launch months updated.")
+    el# Removed editable launch month table from CTR Controls,
             num_rows="dynamic",
             use_container_width=True,
             key="edit_ctr_table"
@@ -63,8 +70,7 @@ with tabs[1]:
     else:
         st.dataframe(st.session_state.ctr_df, use_container_width=True)
         st.dataframe(st.session_state.seasonality_df, use_container_width=True)
-        if not st.session_state.launch_month_df.empty:
-            st.dataframe(st.session_state.launch_month_df, use_container_width=True)
+        # Removed read-only launch month table from CTR Controls
 
     fs_ctr = st.number_input("CTR for Featured Snippet (%)", min_value=0.0, max_value=100.0, value=18.0)
     aio_ctr = st.number_input("CTR for AI Overview (%)", min_value=0.0, max_value=100.0, value=12.0)
