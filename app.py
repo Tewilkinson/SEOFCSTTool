@@ -94,6 +94,7 @@ with tabs[2]:
             key="launch_month_editor"
         )
 
+# --- Upload & Forecast Tab ---
 with tabs[0]:
     st.title("SEO Forecast Tool")
 
@@ -173,10 +174,13 @@ with tabs[0]:
             pos = position
 
             while month <= 24:
-                current_month = (base_date + pd.DateOffset(months=month - 1))
-                forecast_month = current_month.strftime("%B")
+                current_month = base_date + pd.DateOffset(months=month - 1)
+                forecast_month = current_month.strftime("%b %Y")
 
-                if current_month.month < launch_month_index:
+                # Only skip months before launch month in the first launch year
+                skip = current_month.year == base_date.year and current_month.month < launch_month_index
+
+                if skip:
                     adjusted_clicks = 0
                     position_val = pos
                     ctr = 0
@@ -195,7 +199,7 @@ with tabs[0]:
                     ctr = max(0, ctr)
 
                     seasonal_adj = st.session_state.seasonality_df.loc[
-                        st.session_state.seasonality_df['Month'] == forecast_month,
+                        st.session_state.seasonality_df['Month'] == current_month.strftime("%B"),
                         'Adjustment (%)'
                     ].values[0]
                     adjusted_clicks = (ctr / 100) * msv * (1 + seasonal_adj / 100)
