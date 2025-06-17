@@ -132,9 +132,9 @@ with tabs[0]:
         if st.session_state.launch_month_df.empty:
             st.session_state.launch_month_df = pd.DataFrame({"Project": projects, "Launch Month": ["January"] * len(projects)})
 
-        selected_project = st.selectbox("Select a Project to View Forecast", projects)
+        selected_project = st.selectbox("Select a Project to View Forecast", ["All"] + projects)
 
-        filtered_df = df[df['Project'] == selected_project]
+        filtered_df = df if selected_project == "All" else df[df['Project'] == selected_project]
 
         st.markdown("### Keyword Inputs for Project: " + selected_project)
         st.dataframe(filtered_df, use_container_width=True)
