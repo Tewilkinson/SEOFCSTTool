@@ -63,13 +63,7 @@ with st.sidebar:
                 f"{project} Paid Listings", min_value=0, max_value=10, value=2, key=f"paid_{project}"
             )
 
-    st.markdown("---")
-    st.subheader("Average Paid Listings by Project")
-    if st.session_state.launch_month_df is not None and not st.session_state.launch_month_df.empty:
-        for project in st.session_state.launch_month_df['Project'].unique():
-            st.session_state.paid_listings[project] = st.slider(
-                f"{project} – Avg. Paid Listings on SERP", min_value=0, max_value=10, value=2, key=f"paid_{project}"
-            )
+    
 
 with tabs[2]:
     st.header("Project Launch Dates")
