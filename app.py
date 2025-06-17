@@ -22,6 +22,9 @@ if "seasonality_df" not in st.session_state:
 if "launch_month_df" not in st.session_state:
     st.session_state.launch_month_df = pd.DataFrame(columns=["Project", "Launch Month"])
 
+if "paid_listings" not in st.session_state:
+    st.session_state.paid_listings = {}
+
 # --- Tabs Layout ---
 tabs = st.tabs(["Upload & Forecast", "CTR Controls", "Project Launch Dates"])
 
@@ -59,6 +62,14 @@ with tabs[1]:
         fs_ctr = st.number_input("CTR for Featured Snippet (%)", min_value=0.0, max_value=100.0, value=18.0)
     with col4:
         aio_ctr = st.number_input("CTR for AI Overview (%)", min_value=0.0, max_value=100.0, value=12.0)
+
+    st.markdown("---")
+    st.subheader("Average Paid Listings by Project")
+    if st.session_state.launch_month_df is not None and not st.session_state.launch_month_df.empty:
+        for project in st.session_state.launch_month_df['Project'].unique():
+            st.session_state.paid_listings[project] = st.slider(
+                f"{project} – Avg. Paid Listings on SERP", min_value=0, max_value=10, value=2, key=f"paid_{project}"
+            )
 
 with tabs[2]:
     st.header("Project Launch Dates")
@@ -148,6 +159,7 @@ with tabs[0]:
 
         project_launch_month = st.session_state.launch_month_df.set_index("Project").to_dict().get("Launch Month", {})
         launch_month_index = datetime.strptime(project_launch_month.get(selected_project, "January"), "%B").month
+        avg_paid_listings = st.session_state.paid_listings.get(selected_project, 0)
 
         for _, row in filtered_df.iterrows():
             keyword = row['Keyword']
@@ -179,6 +191,9 @@ with tabs[0]:
                     else:
                         ctr = get_ctr_for_position(pos_int)
 
+                    ctr = ctr * (1 - 0.05 * avg_paid_listings)
+                    ctr = max(0, ctr)
+
                     seasonal_adj = st.session_state.seasonality_df.loc[
                         st.session_state.seasonality_df['Month'] == forecast_month,
                         'Adjustment (%)'
@@ -191,7 +206,7 @@ with tabs[0]:
                     "Keyword": keyword,
                     "Month": forecast_month,
                     "Position": round(position_val, 2),
-                    "CTR": ctr,
+                    "CTR": round(ctr, 2),
                     "Forecast Clicks": round(adjusted_clicks),
                     "Current URL": row['Current URL']
                 })
