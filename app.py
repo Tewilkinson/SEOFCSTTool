@@ -9,17 +9,24 @@ from datetime import datetime, timedelta
 # --- App Config ---
 st.set_page_config(page_title="SEO Forecast Tool", layout="wide")
 
+# --- Initialize session state for editable tables ---
+if "ctr_df" not in st.session_state:
+    st.session_state.ctr_df = pd.DataFrame({"Position": list(range(1, 11)), "CTR": [32, 25, 18, 12, 10, 8, 6, 4, 2, 1]})
+
+if "seasonality_df" not in st.session_state:
+    st.session_state.seasonality_df = pd.DataFrame({
+        "Month": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+        "Adjustment (%)": [0, 0, 0, 0, 0, -20, 0, 0, 0, 0, 0, 0]
+    })
+
 # --- Tabs Layout ---
 tabs = st.tabs(["Upload & Forecast", "CTR Controls"])
 
 with tabs[1]:
     st.header("CTR Controls")
 
-    def default_ctr_table():
-        return pd.DataFrame({"Position": list(range(1, 11)), "CTR": [32, 25, 18, 12, 10, 8, 6, 4, 2, 1]})
-
-    ctr_df = st.data_editor(
-        default_ctr_table(),
+    st.session_state.ctr_df = st.data_editor(
+        st.session_state.ctr_df,
         num_rows="dynamic",
         use_container_width=True,
         key="ctr_table"
@@ -29,13 +36,12 @@ with tabs[1]:
     aio_ctr = st.number_input("CTR for AI Overview (%)", min_value=0.0, max_value=100.0, value=12.0)
 
     st.markdown("### Seasonality Adjustment (%) per Month")
-    default_seasonality = {
-        "January": 0, "February": 0, "March": 0, "April": 0,
-        "May": 0, "June": -20, "July": 0, "August": 0,
-        "September": 0, "October": 0, "November": 0, "December": 0
-    }
-    seasonality_df = pd.DataFrame({"Month": list(default_seasonality.keys()), "Adjustment (%)": list(default_seasonality.values())})
-    seasonality_df = st.data_editor(seasonality_df, num_rows="fixed", use_container_width=True, key="seasonality")
+    st.session_state.seasonality_df = st.data_editor(
+        st.session_state.seasonality_df,
+        num_rows="fixed",
+        use_container_width=True,
+        key="seasonality"
+    )
 
 with tabs[0]:
     st.title("SEO Forecast Tool")
@@ -90,9 +96,9 @@ with tabs[0]:
 
         def get_ctr_for_position(pos):
             try:
-                return ctr_df.loc[ctr_df['Position'] == pos, 'CTR'].values[0]
+                return st.session_state.ctr_df.loc[st.session_state.ctr_df['Position'] == pos, 'CTR'].values[0]
             except IndexError:
-                return ctr_df['CTR'].iloc[-1]
+                return st.session_state.ctr_df['CTR'].iloc[-1]
 
         forecast_results = []
         base_date = datetime.today().replace(day=1)
@@ -120,7 +126,10 @@ with tabs[0]:
                     ctr = get_ctr_for_position(pos_int)
 
                 forecast_month = (base_date + pd.DateOffset(months=month - 1)).strftime("%B")
-                seasonal_adj = seasonality_df.loc[seasonality_df['Month'] == forecast_month, 'Adjustment (%)'].values[0]
+                seasonal_adj = st.session_state.seasonality_df.loc[
+                    st.session_state.seasonality_df['Month'] == forecast_month,
+                    'Adjustment (%)'
+                ].values[0]
                 adjusted_clicks = (ctr / 100) * msv * (1 + seasonal_adj / 100)
 
                 forecast_results.append({
