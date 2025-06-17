@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import io
 import plotly.express as px
+from datetime import datetime, timedelta
 
 # --- App Config ---
 st.set_page_config(page_title="SEO Forecast Tool", layout="wide")
@@ -26,6 +27,15 @@ with tabs[1]:
 
     fs_ctr = st.number_input("CTR for Featured Snippet (%)", min_value=0.0, max_value=100.0, value=18.0)
     aio_ctr = st.number_input("CTR for AI Overview (%)", min_value=0.0, max_value=100.0, value=12.0)
+
+    st.markdown("### Seasonality Adjustment (%) per Month")
+    default_seasonality = {
+        "January": 0, "February": 0, "March": 0, "April": 0,
+        "May": 0, "June": -20, "July": 0, "August": 0,
+        "September": 0, "October": 0, "November": 0, "December": 0
+    }
+    seasonality_df = pd.DataFrame({"Month": list(default_seasonality.keys()), "Adjustment (%)": list(default_seasonality.values())})
+    seasonality_df = st.data_editor(seasonality_df, num_rows="fixed", use_container_width=True, key="seasonality")
 
 with tabs[0]:
     st.title("SEO Forecast Tool")
@@ -85,6 +95,7 @@ with tabs[0]:
                 return ctr_df['CTR'].iloc[-1]
 
         forecast_results = []
+        base_date = datetime.today().replace(day=1)
 
         for _, row in filtered_df.iterrows():
             keyword = row['Keyword']
@@ -108,15 +119,17 @@ with tabs[0]:
                 else:
                     ctr = get_ctr_for_position(pos_int)
 
-                clicks = (ctr / 100) * msv
+                forecast_month = (base_date + pd.DateOffset(months=month - 1)).strftime("%B")
+                seasonal_adj = seasonality_df.loc[seasonality_df['Month'] == forecast_month, 'Adjustment (%)'].values[0]
+                adjusted_clicks = (ctr / 100) * msv * (1 + seasonal_adj / 100)
 
                 forecast_results.append({
                     "Project": row['Project'],
                     "Keyword": keyword,
-                    "Month": month,
+                    "Month": forecast_month,
                     "Position": round(pos, 2),
                     "CTR": ctr,
-                    "Forecast Clicks": round(clicks),
+                    "Forecast Clicks": round(adjusted_clicks),
                     "Current URL": row['Current URL']
                 })
                 month += 1
@@ -125,13 +138,14 @@ with tabs[0]:
 
         st.subheader("Traffic Forecast")
 
-        # Plot Forecast Clicks Over Time
+        # Aggregate by Month across all keywords
+        summary_df = forecast_df.groupby("Month", sort=False)["Forecast Clicks"].sum().reset_index()
+
         chart = px.line(
-            forecast_df,
+            summary_df,
             x="Month",
             y="Forecast Clicks",
-            color="Keyword",
-            title="Projected Traffic Over Time by Keyword",
+            title="Projected Total Traffic Over Time",
             markers=True
         )
         st.plotly_chart(chart, use_container_width=True)
