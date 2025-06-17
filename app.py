@@ -62,8 +62,12 @@ with tabs[1]:
 
 with tabs[2]:
     st.header("Project Launch Dates")
+
     if st.session_state.launch_month_df.empty:
-        st.info("No launch months to display yet. Upload keyword data first.")
+        st.info("No launch months found. If you've uploaded keyword data, click below to initialize.")
+        if st.button("Initialize Launch Table with Example Project"):
+            st.session_state.launch_month_df = pd.DataFrame({"Project": ["Example Project"], "Launch Month": ["January"]})
+            st.experimental_rerun()
     else:
         month_options = list(st.session_state.seasonality_df["Month"])
         st.session_state.launch_month_df["Launch Month"] = st.session_state.launch_month_df["Launch Month"].apply(
