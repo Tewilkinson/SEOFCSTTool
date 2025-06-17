@@ -103,168 +103,25 @@ with tabs[1]:
     )
     from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
-        gb = GridOptionsBuilder.from_dataframe(st.session_state.launch_month_df)
-        gb.configure_column("Project", editable=False)
-        gb.configure_column(
-            "Launch Month",
-            editable=True,
-            cellEditor='agSelectCellEditor',
-            cellEditorParams={"values": month_options}
-        )
-        grid_options = gb.build()
-
-        ag_result = AgGrid(
-            st.session_state.launch_month_df,
-            gridOptions=grid_options,
-            update_mode=GridUpdateMode.VALUE_CHANGED,
-            allow_unsafe_jscode=True,
-            fit_columns_on_grid_load=True,
-            enable_enterprise_modules=False,
-            theme="streamlit",
-            height=300,
-            key="launch_month_aggrid"
-        )
-        st.session_state.launch_month_df = ag_result["data"]
-
-# --- Upload & Forecast Tab ---
-with tabs[0]:
-    st.title("SEO Forecast Tool")
-
-    st.subheader("Download Forecast Template")
-    def create_template():
-        data = {
-            "Project": ["Example Project"],
-            "Keyword": ["shoes for men"],
-            "MSV": [12100],
-            "Current Position": [8],
-            "AI Overview": ["Yes"],
-            "Featured Snippet": ["No"],
-            "Current URL": ["https://example.com/shoes-for-men"]
-        }
-        df_template = pd.DataFrame(data)
-        return df_template.to_csv(index=False).encode("utf-8")
-
-    st.download_button(
-        label="Download Template CSV",
-        data=create_template(),
-        file_name="forecast_template.csv",
-        mime="text/csv"
+    gb = GridOptionsBuilder.from_dataframe(st.session_state.launch_month_df)
+    gb.configure_column("Project", editable=False)
+    gb.configure_column(
+        "Launch Month",
+        editable=True,
+        cellEditor='agSelectCellEditor',
+        cellEditorParams={"values": month_options}
     )
+    grid_options = gb.build()
 
-    st.subheader("Upload Keyword Template")
-    template_file = st.file_uploader("Upload CSV or Excel Template", type=["csv", "xlsx"])
-
-    if template_file:
-        if template_file.name.endswith(".csv"):
-            df = pd.read_csv(template_file)
-        else:
-            df = pd.read_excel(template_file)
-
-        projects = df['Project'].dropna().unique().tolist()
-        if st.session_state.launch_month_df.empty:
-            st.session_state.launch_month_df = pd.DataFrame({"Project": projects, "Launch Month": ["January"] * len(projects)})
-
-        selected_project = st.selectbox("Select a Project to View Forecast", ["All"] + projects)
-
-        filtered_df = df if selected_project == "All" else df[df['Project'] == selected_project]
-
-        st.markdown("### Keyword Inputs for Project: " + selected_project)
-        st.dataframe(filtered_df, use_container_width=True)
-
-        def get_movement(msv):
-            if msv <= 500:
-                return 1.5
-            elif msv <= 2000:
-                return 1.0
-            elif msv <= 10000:
-                return 0.5
-            else:
-                return 0.25
-
-        def get_ctr_for_position(pos):
-            try:
-                return st.session_state.ctr_df.loc[st.session_state.ctr_df['Position'] == pos, 'CTR'].values[0]
-            except IndexError:
-                return st.session_state.ctr_df['CTR'].iloc[-1]
-
-        forecast_results = []
-        base_date = datetime.today().replace(day=1)
-
-        project_launch_month = st.session_state.launch_month_df.set_index("Project").to_dict().get("Launch Month", {})
-        launch_month_index = datetime.strptime(project_launch_month.get(selected_project, "January"), "%B").month
-        avg_paid_listings = st.session_state.paid_listings.get(selected_project, 0)
-
-        for _, row in filtered_df.iterrows():
-            keyword = row['Keyword']
-            msv = row['MSV']
-            position = row['Current Position']
-            has_aio = str(row['AI Overview']).strip().lower() == 'yes'
-            has_fs = str(row['Featured Snippet']).strip().lower() == 'yes'
-
-            monthly_gain = get_movement(msv)
-            month = 1
-            pos = position
-
-            while month <= 24:
-                current_month = base_date + pd.DateOffset(months=month - 1)
-                forecast_month = current_month.strftime("%b %Y")
-
-                # Only skip months before launch month in the first launch year
-                skip = current_month.year == base_date.year and current_month.month < launch_month_index
-
-                if skip:
-                    adjusted_clicks = 0
-                    position_val = pos
-                    ctr = 0
-                else:
-                    pos = max(1, pos - monthly_gain)
-                    pos_int = int(round(pos))
-
-                    if pos_int == 1 and has_aio:
-                        ctr = aio_ctr
-                    elif pos_int == 1 and has_fs:
-                        ctr = fs_ctr
-                    else:
-                        ctr = get_ctr_for_position(pos_int)
-
-                    ctr = ctr * (1 - 0.05 * avg_paid_listings)
-                    ctr = max(0, ctr)
-
-                    seasonal_adj = st.session_state.seasonality_df.loc[
-                        st.session_state.seasonality_df['Month'] == current_month.strftime("%B"),
-                        'Adjustment (%)'
-                    ].values[0]
-                    adjusted_clicks = (ctr / 100) * msv * (1 + seasonal_adj / 100)
-                    position_val = pos
-
-                forecast_results.append({
-                    "Project": row['Project'],
-                    "Keyword": keyword,
-                    "Month": forecast_month,
-                    "Position": round(position_val, 2),
-                    "CTR": round(ctr, 2),
-                    "Forecast Clicks": round(adjusted_clicks),
-                    "Current URL": row['Current URL']
-                })
-                month += 1
-
-        forecast_df = pd.DataFrame(forecast_results)
-
-        st.subheader("Traffic Forecast")
-
-        summary_df = forecast_df.groupby("Month", sort=False)["Forecast Clicks"].sum().reset_index()
-
-        chart = px.line(
-            summary_df,
-            x="Month",
-            y="Forecast Clicks",
-            title="Projected Total Traffic Over Time",
-            markers=True
-        )
-        st.plotly_chart(chart, use_container_width=True)
-
-        st.subheader("Forecast Table")
-        st.dataframe(forecast_df, use_container_width=True)
-
-        csv = forecast_df.to_csv(index=False).encode('utf-8')
-        st.download_button("Download Forecast CSV", data=csv, file_name="traffic_forecast.csv")
+    ag_result = AgGrid(
+        st.session_state.launch_month_df,
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.VALUE_CHANGED,
+        allow_unsafe_jscode=True,
+        fit_columns_on_grid_load=True,
+        enable_enterprise_modules=False,
+        theme="streamlit",
+        height=300,
+        key="launch_month_aggrid"
+    )
+    st.session_state.launch_month_df = ag_result["data"]
