@@ -28,40 +28,40 @@ if "paid_listings" not in st.session_state:
 # --- Tabs Layout ---
 tabs = st.tabs(["Upload & Forecast", "CTR Controls", "Project Launch Dates"])
 
-with tabs[1]:
+with st.sidebar:
     st.header("CTR Controls")
 
-    col1, col2 = st.columns(2)
+    st.subheader("CTR by Position")
+    st.session_state.ctr_df = st.data_editor(
+        st.session_state.ctr_df,
+        column_config={
+            "CTR": st.column_config.NumberColumn("CTR (%)", min_value=0.0, max_value=100.0, format="%.1f")
+        },
+        num_rows="dynamic",
+        use_container_width=True,
+        key="edit_ctr_table"
+    )
 
-    with col1:
-        st.subheader("CTR by Position")
-        st.session_state.ctr_df = st.data_editor(
-            st.session_state.ctr_df,
-            column_config={
-                "CTR": st.column_config.NumberColumn("CTR (%)", min_value=0.0, max_value=100.0, format="%.1f")
-            },
-            num_rows="dynamic",
-            use_container_width=True,
-            key="edit_ctr_table"
-        )
+    st.subheader("Seasonality by Month")
+    st.session_state.seasonality_df = st.data_editor(
+        st.session_state.seasonality_df,
+        column_config={
+            "Adjustment (%)": st.column_config.NumberColumn("Adjustment (%)", min_value=-100, max_value=100, format="%.0f")
+        },
+        num_rows="fixed",
+        use_container_width=True,
+        key="edit_seasonality"
+    )
 
-    with col2:
-        st.subheader("Seasonality by Month")
-        st.session_state.seasonality_df = st.data_editor(
-            st.session_state.seasonality_df,
-            column_config={
-                "Adjustment (%)": st.column_config.NumberColumn("Adjustment (%)", min_value=-100, max_value=100, format="%.0f")
-            },
-            num_rows="fixed",
-            use_container_width=True,
-            key="edit_seasonality"
-        )
+    fs_ctr = st.number_input("CTR for Featured Snippet (%)", min_value=0.0, max_value=100.0, value=18.0)
+    aio_ctr = st.number_input("CTR for AI Overview (%)", min_value=0.0, max_value=100.0, value=12.0)
 
-    col3, col4 = st.columns(2)
-    with col3:
-        fs_ctr = st.number_input("CTR for Featured Snippet (%)", min_value=0.0, max_value=100.0, value=18.0)
-    with col4:
-        aio_ctr = st.number_input("CTR for AI Overview (%)", min_value=0.0, max_value=100.0, value=12.0)
+    st.subheader("Avg. Paid Listings by Project")
+    if st.session_state.launch_month_df is not None and not st.session_state.launch_month_df.empty:
+        for project in st.session_state.launch_month_df['Project'].unique():
+            st.session_state.paid_listings[project] = st.slider(
+                f"{project} Paid Listings", min_value=0, max_value=10, value=2, key=f"paid_{project}"
+            )
 
     st.markdown("---")
     st.subheader("Average Paid Listings by Project")
