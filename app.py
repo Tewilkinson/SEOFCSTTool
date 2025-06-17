@@ -5,6 +5,7 @@ import numpy as np
 import io
 import plotly.express as px
 from datetime import datetime, timedelta
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 # --- App Config ---
 st.set_page_config(page_title="SEO Forecast Tool", layout="wide")
@@ -32,19 +33,33 @@ with tabs[1]:
 
     with col1:
         st.subheader("CTR by Position")
-        edited_ctr = st.data_editor(
-            st.session_state.ctr_df.copy(),
-            num_rows="dynamic",
-            use_container_width=True,
+        ctr_gb = GridOptionsBuilder.from_dataframe(st.session_state.ctr_df)
+        ctr_gb.configure_default_column(editable=True)
+        ctr_gb.configure_column("CTR", type=["numericColumn"], valueFormatter="x.toFixed(1) + '%'")
+        ctr_grid = AgGrid(
+            st.session_state.ctr_df,
+            gridOptions=ctr_gb.build(),
+            update_mode=GridUpdateMode.VALUE_CHANGED,
+            editable=True,
+            fit_columns_on_grid_load=True,
+            theme="streamlit",
+            height=300,
             key="edit_ctr_table"
         )
 
     with col2:
         st.subheader("Seasonality by Month")
-        edited_seasonality = st.data_editor(
-            st.session_state.seasonality_df.copy(),
-            num_rows="fixed",
-            use_container_width=True,
+        season_gb = GridOptionsBuilder.from_dataframe(st.session_state.seasonality_df)
+        season_gb.configure_default_column(editable=True)
+        season_gb.configure_column("Adjustment (%)", type=["numericColumn"], valueFormatter="x.toFixed(0) + '%'")
+        season_grid = AgGrid(
+            st.session_state.seasonality_df,
+            gridOptions=season_gb.build(),
+            update_mode=GridUpdateMode.VALUE_CHANGED,
+            editable=True,
+            fit_columns_on_grid_load=True,
+            theme="streamlit",
+            height=300,
             key="edit_seasonality"
         )
 
@@ -55,8 +70,8 @@ with tabs[1]:
         aio_ctr = st.number_input("CTR for AI Overview (%)", min_value=0.0, max_value=100.0, value=12.0)
 
     if st.button("Save Changes"):
-        st.session_state.ctr_df = edited_ctr.copy()
-        st.session_state.seasonality_df = edited_seasonality.copy()
+        st.session_state.ctr_df = pd.DataFrame(ctr_grid["data"])
+        st.session_state.seasonality_df = pd.DataFrame(season_grid["data"])
         st.success("Changes saved and applied to forecast.")
 
 with tabs[2]:
@@ -64,10 +79,16 @@ with tabs[2]:
     if st.session_state.launch_month_df.empty:
         st.info("No launch months to display yet. Upload keyword data first.")
     else:
-        st.data_editor(
+        launch_gb = GridOptionsBuilder.from_dataframe(st.session_state.launch_month_df)
+        launch_gb.configure_default_column(editable=True)
+        AgGrid(
             st.session_state.launch_month_df,
-            num_rows="dynamic",
-            use_container_width=True,
+            gridOptions=launch_gb.build(),
+            update_mode=GridUpdateMode.VALUE_CHANGED,
+            editable=True,
+            fit_columns_on_grid_load=True,
+            theme="streamlit",
+            height=300,
             key="launch_month_editor"
         )
 
@@ -113,7 +134,7 @@ with tabs[0]:
         filtered_df = df[df['Project'] == selected_project]
 
         st.markdown("### Keyword Inputs for Project: " + selected_project)
-        st.dataframe(filtered_df, use_container_width=True)
+        AgGrid(filtered_df, theme="streamlit", fit_columns_on_grid_load=True, height=300)
 
         def get_movement(msv):
             if msv <= 500:
@@ -200,7 +221,18 @@ with tabs[0]:
         )
         st.plotly_chart(chart, use_container_width=True)
 
-        st.dataframe(forecast_df, use_container_width=True)
+        st.subheader("Forecast Table")
+        forecast_gb = GridOptionsBuilder.from_dataframe(forecast_df)
+        forecast_gb.configure_column("CTR", type=["numericColumn"], valueFormatter="x.toFixed(1) + '%'")
+        forecast_gb.configure_column("Position", type=["numericColumn"], valueFormatter="x.toFixed(2)")
+        forecast_gb.configure_column("Forecast Clicks", type=["numericColumn"], valueFormatter="x.toLocaleString()")
+        AgGrid(
+            forecast_df,
+            gridOptions=forecast_gb.build(),
+            theme="streamlit",
+            height=500,
+            fit_columns_on_grid_load=True
+        )
 
         csv = forecast_df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Forecast CSV", data=csv, file_name="traffic_forecast.csv")
