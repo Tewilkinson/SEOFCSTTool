@@ -39,11 +39,7 @@ with tabs[2]:
         if st.button("Save Launch Dates"):
             st.session_state.launch_month_df = edited_launch.copy()
             st.success("Launch months updated.")
-    el# Removed editable launch month table from CTR Controls,
-            num_rows="dynamic",
-            use_container_width=True,
-            key="edit_ctr_table"
-        )
+    
 
         edited_seasonality = st.data_editor(
             st.session_state.seasonality_df.copy(),
