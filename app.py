@@ -25,23 +25,33 @@ tabs = st.tabs(["Upload & Forecast", "CTR Controls"])
 with tabs[1]:
     st.header("CTR Controls")
 
-    st.session_state.ctr_df = st.data_editor(
-        st.session_state.ctr_df,
-        num_rows="dynamic",
-        use_container_width=True,
-        key="ctr_table"
-    )
+    edit_mode = st.checkbox("Enable Edit Mode")
+
+    if edit_mode:
+        edited_ctr = st.data_editor(
+            st.session_state.ctr_df.copy(),
+            num_rows="dynamic",
+            use_container_width=True,
+            key="edit_ctr_table"
+        )
+
+        edited_seasonality = st.data_editor(
+            st.session_state.seasonality_df.copy(),
+            num_rows="fixed",
+            use_container_width=True,
+            key="edit_seasonality"
+        )
+
+        if st.button("Save Changes"):
+            st.session_state.ctr_df = edited_ctr.copy()
+            st.session_state.seasonality_df = edited_seasonality.copy()
+            st.success("Changes saved and applied to forecast.")
+    else:
+        st.dataframe(st.session_state.ctr_df, use_container_width=True)
+        st.dataframe(st.session_state.seasonality_df, use_container_width=True)
 
     fs_ctr = st.number_input("CTR for Featured Snippet (%)", min_value=0.0, max_value=100.0, value=18.0)
     aio_ctr = st.number_input("CTR for AI Overview (%)", min_value=0.0, max_value=100.0, value=12.0)
-
-    st.markdown("### Seasonality Adjustment (%) per Month")
-    st.session_state.seasonality_df = st.data_editor(
-        st.session_state.seasonality_df,
-        num_rows="fixed",
-        use_container_width=True,
-        key="seasonality"
-    )
 
 with tabs[0]:
     st.title("SEO Forecast Tool")
