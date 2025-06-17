@@ -34,6 +34,9 @@ with tabs[1]:
         st.subheader("CTR by Position")
         st.session_state.ctr_df = st.data_editor(
             st.session_state.ctr_df,
+            column_config={
+                "CTR": st.column_config.NumberColumn("CTR (%)", min_value=0.0, max_value=100.0, format="%.1f")
+            },
             num_rows="dynamic",
             use_container_width=True,
             key="edit_ctr_table"
@@ -43,6 +46,9 @@ with tabs[1]:
         st.subheader("Seasonality by Month")
         st.session_state.seasonality_df = st.data_editor(
             st.session_state.seasonality_df,
+            column_config={
+                "Adjustment (%)": st.column_config.NumberColumn("Adjustment (%)", min_value=-100, max_value=100, format="%.0f")
+            },
             num_rows="fixed",
             use_container_width=True,
             key="edit_seasonality"
@@ -59,8 +65,15 @@ with tabs[2]:
     if st.session_state.launch_month_df.empty:
         st.info("No launch months to display yet. Upload keyword data first.")
     else:
+        month_options = list(st.session_state.seasonality_df["Month"])
+        st.session_state.launch_month_df["Launch Month"] = st.session_state.launch_month_df["Launch Month"].apply(
+            lambda x: x if x in month_options else "January"
+        )
         st.session_state.launch_month_df = st.data_editor(
             st.session_state.launch_month_df,
+            column_config={
+                "Launch Month": st.column_config.SelectboxColumn("Launch Month", options=month_options)
+            },
             num_rows="dynamic",
             use_container_width=True,
             key="launch_month_editor"
