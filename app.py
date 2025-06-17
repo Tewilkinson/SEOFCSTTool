@@ -72,7 +72,8 @@ with tabs[2]:
             st.session_state.launch_month_df = edited_launch.copy()
             st.success("Launch months updated.")
     elif not st.session_state.launch_month_df.empty:
-    st.dataframe(st.session_state.launch_month_df, use_container_width=True)", min_value=0.0, max_value=100.0, value=12.0)
+        st.dataframe(st.session_state.launch_month_df, use_container_width=True)
+
 
 with tabs[0]:
     st.title("SEO Forecast Tool")
