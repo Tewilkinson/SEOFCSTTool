@@ -102,6 +102,18 @@ with tabs[1]:
         lambda x: x if x in month_options else "January"
     )
     from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+
+        gb = GridOptionsBuilder.from_dataframe(st.session_state.launch_month_df)
+        gb.configure_column("Project", editable=False)
+        gb.configure_column(
+            "Launch Month",
+            editable=True,
+            cellEditor='agSelectCellEditor',
+            cellEditorParams={"values": month_options}
+        )
+        grid_options = gb.build()
+
+        ag_result = AgGrid(
             st.session_state.launch_month_df,
             gridOptions=grid_options,
             update_mode=GridUpdateMode.VALUE_CHANGED,
