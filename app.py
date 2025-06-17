@@ -19,6 +19,9 @@ if "seasonality_df" not in st.session_state:
         "Adjustment (%)": [0, 0, 0, 0, 0, -20, 0, 0, 0, 0, 0, 0]
     })
 
+if "launch_month_df" not in st.session_state:
+    st.session_state.launch_month_df = pd.DataFrame(columns=["Project", "Launch Month"])
+
 # --- Tabs Layout ---
 tabs = st.tabs(["Upload & Forecast", "CTR Controls"])
 
@@ -42,13 +45,26 @@ with tabs[1]:
             key="edit_seasonality"
         )
 
+        if not st.session_state.launch_month_df.empty:
+            edited_launch = st.data_editor(
+                st.session_state.launch_month_df.copy(),
+                num_rows="dynamic",
+                use_container_width=True,
+                key="edit_launch_month"
+            )
+        else:
+            edited_launch = pd.DataFrame(columns=["Project", "Launch Month"])
+
         if st.button("Save Changes"):
             st.session_state.ctr_df = edited_ctr.copy()
             st.session_state.seasonality_df = edited_seasonality.copy()
+            st.session_state.launch_month_df = edited_launch.copy()
             st.success("Changes saved and applied to forecast.")
     else:
         st.dataframe(st.session_state.ctr_df, use_container_width=True)
         st.dataframe(st.session_state.seasonality_df, use_container_width=True)
+        if not st.session_state.launch_month_df.empty:
+            st.dataframe(st.session_state.launch_month_df, use_container_width=True)
 
     fs_ctr = st.number_input("CTR for Featured Snippet (%)", min_value=0.0, max_value=100.0, value=18.0)
     aio_ctr = st.number_input("CTR for AI Overview (%)", min_value=0.0, max_value=100.0, value=12.0)
@@ -87,6 +103,9 @@ with tabs[0]:
             df = pd.read_excel(template_file)
 
         projects = df['Project'].dropna().unique().tolist()
+        if st.session_state.launch_month_df.empty:
+            st.session_state.launch_month_df = pd.DataFrame({"Project": projects, "Launch Month": ["January"] * len(projects)})
+
         selected_project = st.selectbox("Select a Project to View Forecast", projects)
 
         filtered_df = df[df['Project'] == selected_project]
@@ -113,6 +132,9 @@ with tabs[0]:
         forecast_results = []
         base_date = datetime.today().replace(day=1)
 
+        project_launch_month = st.session_state.launch_month_df.set_index("Project").to_dict().get("Launch Month", {})
+        launch_month_index = datetime.strptime(project_launch_month.get(selected_project, "January"), "%B").month
+
         for _, row in filtered_df.iterrows():
             keyword = row['Keyword']
             msv = row['MSV']
@@ -125,28 +147,36 @@ with tabs[0]:
             pos = position
 
             while month <= 24:
-                pos = max(1, pos - monthly_gain)
-                pos_int = int(round(pos))
+                current_month = (base_date + pd.DateOffset(months=month - 1))
+                forecast_month = current_month.strftime("%B")
 
-                if pos_int == 1 and has_aio:
-                    ctr = aio_ctr
-                elif pos_int == 1 and has_fs:
-                    ctr = fs_ctr
+                if current_month.month < launch_month_index:
+                    adjusted_clicks = 0
+                    position_val = pos
+                    ctr = 0
                 else:
-                    ctr = get_ctr_for_position(pos_int)
+                    pos = max(1, pos - monthly_gain)
+                    pos_int = int(round(pos))
 
-                forecast_month = (base_date + pd.DateOffset(months=month - 1)).strftime("%B")
-                seasonal_adj = st.session_state.seasonality_df.loc[
-                    st.session_state.seasonality_df['Month'] == forecast_month,
-                    'Adjustment (%)'
-                ].values[0]
-                adjusted_clicks = (ctr / 100) * msv * (1 + seasonal_adj / 100)
+                    if pos_int == 1 and has_aio:
+                        ctr = aio_ctr
+                    elif pos_int == 1 and has_fs:
+                        ctr = fs_ctr
+                    else:
+                        ctr = get_ctr_for_position(pos_int)
+
+                    seasonal_adj = st.session_state.seasonality_df.loc[
+                        st.session_state.seasonality_df['Month'] == forecast_month,
+                        'Adjustment (%)'
+                    ].values[0]
+                    adjusted_clicks = (ctr / 100) * msv * (1 + seasonal_adj / 100)
+                    position_val = pos
 
                 forecast_results.append({
                     "Project": row['Project'],
                     "Keyword": keyword,
                     "Month": forecast_month,
-                    "Position": round(pos, 2),
+                    "Position": round(position_val, 2),
                     "CTR": ctr,
                     "Forecast Clicks": round(adjusted_clicks),
                     "Current URL": row['Current URL']
@@ -157,7 +187,6 @@ with tabs[0]:
 
         st.subheader("Traffic Forecast")
 
-        # Aggregate by Month across all keywords
         summary_df = forecast_df.groupby("Month", sort=False)["Forecast Clicks"].sum().reset_index()
 
         chart = px.line(
