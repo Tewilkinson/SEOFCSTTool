@@ -68,34 +68,46 @@ with st.sidebar:
 with tabs[1]:
     st.header("Project Launch Dates")
 
-    if st.session_state.launch_month_df.empty:
-        st.info("No launch months found. If you've uploaded keyword data, click below to initialize.")
-        if st.button("Initialize Launch Table with Example Project"):
-            st.session_state.launch_month_df = pd.DataFrame({"Project": ["Example Project"], "Launch Month": ["January"]})
-            st.experimental_rerun()
-    else:
-        month_options = list(st.session_state.seasonality_df["Month"])
-        st.session_state.launch_month_df["Launch Month"] = st.session_state.launch_month_df["Launch Month"].apply(
-            lambda x: x if x in month_options else "January"
-        )
-        from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+    # Aggregate forecast clicks if available
+    forecast_summary = pd.DataFrame()
+    if "forecast_df" in locals():
+        forecast_summary = forecast_df.copy()
+        forecast_summary["Month_Idx"] = forecast_summary["Month"].apply(lambda m: datetime.strptime(m, "%b %Y"))
 
-        gb = GridOptionsBuilder.from_dataframe(st.session_state.launch_month_df)
-        gb.configure_column("Project", editable=False)
-        gb.configure_column(
-            "Launch Month",
-            editable=True,
-            cellEditor='agSelectCellEditor',
-            cellEditorParams={"values": month_options}
+        grouped = forecast_summary.groupby("Project")
+        project_metrics = []
+        for project, group in grouped:
+            group = group.sort_values("Month_Idx")
+            sum_3mo = group.head(3)["Forecast Clicks"].sum()
+            sum_6mo = group.head(6)["Forecast Clicks"].sum()
+            sum_12mo = group.head(12)["Forecast Clicks"].sum()
+            actions = group["Keyword"].nunique()
+            project_metrics.append({
+                "Project": project,
+                "# Keywords": actions,
+                "Clicks (3mo)": sum_3mo,
+                "Clicks (6mo)": sum_6mo,
+                "Clicks (12mo)": sum_12mo
+            })
+        project_metrics_df = pd.DataFrame(project_metrics)
+        st.session_state.launch_month_df = pd.merge(
+            st.session_state.launch_month_df,
+            project_metrics_df,
+            on="Project",
+            how="left"
         )
-        grid_options = gb.build()
 
-        ag_result = AgGrid(
+    month_options = list(st.session_state.seasonality_df["Month"])
+    st.session_state.launch_month_df["Launch Month"] = st.session_state.launch_month_df["Launch Month"].apply(
+        lambda x: x if x in month_options else "January"
+    )
+    from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
             st.session_state.launch_month_df,
             gridOptions=grid_options,
             update_mode=GridUpdateMode.VALUE_CHANGED,
             allow_unsafe_jscode=True,
             fit_columns_on_grid_load=True,
+            enable_enterprise_modules=False,
             theme="streamlit",
             height=300,
             key="launch_month_aggrid"
