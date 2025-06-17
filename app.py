@@ -57,8 +57,7 @@ with tabs[1]:
     if st.button("Save Changes"):
         st.session_state.ctr_df = edited_ctr.copy()
         st.session_state.seasonality_df = edited_seasonality.copy()
-        st.success("Changes saved and applied to forecast.")", min_value=0.0, max_value=100.0, value=12.0)
-
+        st.success("Changes saved and applied to forecast.")
 
 with tabs[2]:
     st.header("Project Launch Dates")
@@ -70,8 +69,7 @@ with tabs[2]:
             num_rows="dynamic",
             use_container_width=True,
             key="launch_month_editor"
-        )(st.session_state.launch_month_df, use_container_width=True)
-
+        )
 
 with tabs[0]:
     st.title("SEO Forecast Tool")
