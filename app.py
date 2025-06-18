@@ -60,44 +60,6 @@ with st.sidebar:
                 f"{project} Paid Listings", min_value=0, max_value=10, value=2, key=f"paid_{project}"
             )
 
-with tabs[1]:
-    st.header("Project Launch Dates")
-
-    # Upload Project Data (Example provided by the user)
-    uploaded_file = st.file_uploader("Upload Project Data", type=["csv", "xlsx"])
-    if uploaded_file:
-        if uploaded_file.name.endswith(".csv"):
-            df = pd.read_csv(uploaded_file)
-        else:
-            df = pd.read_excel(uploaded_file)
-
-        # Ensure columns are present
-        required_columns = ['Project', 'Keyword', 'MSV', 'Current Position', 'AI Overview', 'Featured Snippet', 'Current URL']
-        if all(col in df.columns for col in required_columns):
-            # Add a column for the manual Launch Date input
-            df['Launch Date'] = df['Project'].apply(lambda x: st.date_input(f"Select Launch Date for {x}", value=datetime(2023, 1, 1)))
-            st.session_state.launch_month_df = df  # Save the data to session_state
-
-            # Calculate the clicks forecast based on the launch date
-            def calculate_forecast(row):
-                launch_date = row['Launch Date']
-                current_date = datetime.today()
-                months_difference = (current_date.year - launch_date.year) * 12 + current_date.month - launch_date.month
-                forecast = {
-                    "Clicks (3 Months)": row['MSV'] * 0.5 * (1 + 0.1 * months_difference),  # Placeholder model for forecast
-                    "Clicks (6 Months)": row['MSV'] * 1.0 * (1 + 0.1 * months_difference),
-                    "Clicks (9 Months)": row['MSV'] * 1.5 * (1 + 0.1 * months_difference),
-                    "Clicks (12 Months)": row['MSV'] * 2.0 * (1 + 0.1 * months_difference),
-                }
-                return pd.Series(forecast)
-
-            # Apply the forecast calculation
-            forecast_df = df.apply(calculate_forecast, axis=1)
-            df = pd.concat([df, forecast_df], axis=1)
-
-            st.dataframe(df, use_container_width=True)
-
-# --- Upload & Forecast Tab ---
 with tabs[0]:
     st.title("SEO Forecast Tool")
 
@@ -132,8 +94,9 @@ with tabs[0]:
             df = pd.read_excel(template_file)
 
         projects = df['Project'].dropna().unique().tolist()
+
         if st.session_state.launch_month_df.empty:
-            st.session_state.launch_month_df = pd.DataFrame({"Project": projects, "Launch Month": ["January"] * len(projects)})
+            st.session_state.launch_month_df = pd.DataFrame({"Project": projects, "Launch Date": [None] * len(projects)})
 
         selected_project = st.selectbox("Select a Project to View Forecast", ["All"] + projects)
 
@@ -161,10 +124,12 @@ with tabs[0]:
         forecast_results = []
         base_date = datetime.today().replace(day=1)
 
-        project_launch_month = st.session_state.launch_month_df.set_index("Project").to_dict().get("Launch Month", {})
-        launch_month_index = datetime.strptime(project_launch_month.get(selected_project, "January"), "%B").month
-        avg_paid_listings = st.session_state.paid_listings.get(selected_project, 0)
+        # Manual launch date input
+        for project in st.session_state.launch_month_df['Project']:
+            launch_date = st.date_input(f"Select Launch Date for {project}", value=datetime(2023, 1, 1))
+            st.session_state.launch_month_df.loc[st.session_state.launch_month_df['Project'] == project, 'Launch Date'] = launch_date
 
+        # Calculate the forecast
         for _, row in filtered_df.iterrows():
             keyword = row['Keyword']
             msv = row['MSV']
@@ -180,8 +145,11 @@ with tabs[0]:
                 current_month = base_date + pd.DateOffset(months=month - 1)
                 forecast_month = current_month.strftime("%b %Y")
 
-                # Only skip months before launch month in the first launch year
-                skip = current_month.year == base_date.year and current_month.month < launch_month_index
+                # Get the launch date from the session state
+                launch_date = st.session_state.launch_month_df.loc[
+                    st.session_state.launch_month_df['Project'] == row['Project'], 'Launch Date'].values[0]
+
+                skip = current_month < launch_date
 
                 if skip:
                     adjusted_clicks = 0
@@ -198,7 +166,7 @@ with tabs[0]:
                     else:
                         ctr = get_ctr_for_position(pos_int)
 
-                    ctr = ctr * (1 - 0.05 * avg_paid_listings)
+                    ctr = ctr * (1 - 0.05 * st.session_state.paid_listings.get(row['Project'], 0))
                     ctr = max(0, ctr)
 
                     seasonal_adj = st.session_state.seasonality_df.loc[
@@ -239,3 +207,10 @@ with tabs[0]:
 
         csv = forecast_df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Forecast CSV", data=csv, file_name="traffic_forecast.csv")
+
+
+with tabs[1]:
+    st.header("Project Launch Dates")
+    # The table is populated directly in the first tab, so no additional input is needed here
+    if st.session_state.launch_month_df is not None and not st.session_state.launch_month_df.empty:
+        st.dataframe(st.session_state.launch_month_df, use_container_width=True)
