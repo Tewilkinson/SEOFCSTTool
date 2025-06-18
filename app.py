@@ -129,63 +129,64 @@ with tabs[0]:
             launch_date = st.date_input(f"Select Launch Date for {project}", value=datetime(2023, 1, 1))
             st.session_state.launch_month_df.loc[st.session_state.launch_month_df['Project'] == project, 'Launch Date'] = launch_date
 
-        # Calculate the forecast
-        for _, row in filtered_df.iterrows():
-            keyword = row['Keyword']
-            msv = row['MSV']
-            position = row['Current Position']
-            has_aio = str(row['AI Overview']).strip().lower() == 'yes'
-            has_fs = str(row['Featured Snippet']).strip().lower() == 'yes'
+      # Calculate the forecast
+for _, row in filtered_df.iterrows():
+    keyword = row['Keyword']
+    msv = row['MSV']
+    position = row['Current Position']
+    has_aio = str(row['AI Overview']).strip().lower() == 'yes'
+    has_fs = str(row['Featured Snippet']).strip().lower() == 'yes'
 
-            monthly_gain = get_movement(msv)
-            month = 1
-            pos = position
+    monthly_gain = get_movement(msv)
+    month = 1
+    pos = position
 
-            while month <= 24:
-                current_month = base_date + pd.DateOffset(months=month - 1)
-                forecast_month = current_month.strftime("%b %Y")
+    while month <= 24:
+        current_month = base_date + pd.DateOffset(months=month - 1)
+        forecast_month = current_month.strftime("%b %Y")
 
-                # Get the launch date from the session state
-                launch_date = st.session_state.launch_month_df.loc[
-                    st.session_state.launch_month_df['Project'] == row['Project'], 'Launch Date'].values[0]
+        # Get the launch date from the session state and convert to datetime
+        launch_date = pd.to_datetime(st.session_state.launch_month_df.loc[
+            st.session_state.launch_month_df['Project'] == row['Project'], 'Launch Date'].values[0])
 
-                skip = current_month < launch_date
+        # Compare datetime objects
+        skip = current_month < launch_date
 
-                if skip:
-                    adjusted_clicks = 0
-                    position_val = pos
-                    ctr = 0
-                else:
-                    pos = max(1, pos - monthly_gain)
-                    pos_int = int(round(pos))
+        if skip:
+            adjusted_clicks = 0
+            position_val = pos
+            ctr = 0
+        else:
+            pos = max(1, pos - monthly_gain)
+            pos_int = int(round(pos))
 
-                    if pos_int == 1 and has_aio:
-                        ctr = aio_ctr
-                    elif pos_int == 1 and has_fs:
-                        ctr = fs_ctr
-                    else:
-                        ctr = get_ctr_for_position(pos_int)
+            if pos_int == 1 and has_aio:
+                ctr = aio_ctr
+            elif pos_int == 1 and has_fs:
+                ctr = fs_ctr
+            else:
+                ctr = get_ctr_for_position(pos_int)
 
-                    ctr = ctr * (1 - 0.05 * st.session_state.paid_listings.get(row['Project'], 0))
-                    ctr = max(0, ctr)
+            ctr = ctr * (1 - 0.05 * st.session_state.paid_listings.get(row['Project'], 0))
+            ctr = max(0, ctr)
 
-                    seasonal_adj = st.session_state.seasonality_df.loc[
-                        st.session_state.seasonality_df['Month'] == current_month.strftime("%B"),
-                        'Adjustment (%)'
-                    ].values[0]
-                    adjusted_clicks = (ctr / 100) * msv * (1 + seasonal_adj / 100)
-                    position_val = pos
+            seasonal_adj = st.session_state.seasonality_df.loc[
+                st.session_state.seasonality_df['Month'] == current_month.strftime("%B"),
+                'Adjustment (%)'
+            ].values[0]
+            adjusted_clicks = (ctr / 100) * msv * (1 + seasonal_adj / 100)
+            position_val = pos
 
-                forecast_results.append({
-                    "Project": row['Project'],
-                    "Keyword": keyword,
-                    "Month": forecast_month,
-                    "Position": round(position_val, 2),
-                    "CTR": round(ctr, 2),
-                    "Forecast Clicks": round(adjusted_clicks),
-                    "Current URL": row['Current URL']
-                })
-                month += 1
+        forecast_results.append({
+            "Project": row['Project'],
+            "Keyword": keyword,
+            "Month": forecast_month,
+            "Position": round(position_val, 2),
+            "CTR": round(ctr, 2),
+            "Forecast Clicks": round(adjusted_clicks),
+            "Current URL": row['Current URL']
+        })
+        month += 1
 
         forecast_df = pd.DataFrame(forecast_results)
 
