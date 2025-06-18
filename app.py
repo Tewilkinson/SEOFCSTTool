@@ -1,10 +1,10 @@
-# seo_forecast_tool.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 import io
 import plotly.express as px
 from datetime import datetime, timedelta
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 # --- App Config ---
 st.set_page_config(page_title="SEO Forecast Tool", layout="wide")
@@ -63,8 +63,6 @@ with st.sidebar:
                 f"{project} Paid Listings", min_value=0, max_value=10, value=2, key=f"paid_{project}"
             )
 
-    
-
 with tabs[1]:
     st.header("Project Launch Dates")
 
@@ -101,7 +99,6 @@ with tabs[1]:
     st.session_state.launch_month_df["Launch Month"] = st.session_state.launch_month_df["Launch Month"].apply(
         lambda x: x if x in month_options else "January"
     )
-     from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
     gb = GridOptionsBuilder.from_dataframe(st.session_state.launch_month_df)
     gb.configure_column("Project", editable=False)
