@@ -20,7 +20,7 @@ if "seasonality_df" not in st.session_state:
     })
 
 if "launch_month_df" not in st.session_state:
-    st.session_state.launch_month_df = pd.DataFrame(columns=["Project", "Launch Month"])
+    st.session_state.launch_month_df = pd.DataFrame(columns=["Project", "Launch Date"])
 
 if "paid_listings" not in st.session_state:
     st.session_state.paid_listings = {}
@@ -30,7 +30,6 @@ tabs = st.tabs(["Upload & Forecast", "Project Launch Dates"])
 
 with st.sidebar:
     st.header("CTR Controls")
-
     st.subheader("CTR by Position")
     st.session_state.ctr_df = st.data_editor(
         st.session_state.ctr_df,
@@ -66,48 +65,20 @@ with st.sidebar:
 with tabs[1]:
     st.header("Project Launch Dates")
 
-    # Aggregate forecast clicks if available
-    forecast_summary = pd.DataFrame()
-    if "forecast_df" in locals():
-        forecast_summary = forecast_df.copy()
-        forecast_summary["Month_Idx"] = forecast_summary["Month"].apply(lambda m: datetime.strptime(m, "%b %Y"))
+    # Project launch date input section
+    project_launch_df = st.session_state.launch_month_df.copy()
 
-        grouped = forecast_summary.groupby("Project")
-        project_metrics = []
-        for project, group in grouped:
-            group = group.sort_values("Month_Idx")
-            sum_3mo = group.head(3)["Forecast Clicks"].sum()
-            sum_6mo = group.head(6)["Forecast Clicks"].sum()
-            sum_12mo = group.head(12)["Forecast Clicks"].sum()
-            actions = group["Keyword"].nunique()
-            project_metrics.append({
-                "Project": project,
-                "# Keywords": actions,
-                "Clicks (3mo)": sum_3mo,
-                "Clicks (6mo)": sum_6mo,
-                "Clicks (12mo)": sum_12mo
-            })
-        project_metrics_df = pd.DataFrame(project_metrics)
-        st.session_state.launch_month_df = pd.merge(
-            st.session_state.launch_month_df,
-            project_metrics_df,
-            on="Project",
-            how="left"
+    if not project_launch_df.empty:
+        project_launch_df["Launch Date"] = project_launch_df["Project"].apply(
+            lambda x: st.date_input(f"Select launch date for {x}", value=datetime.today())
         )
 
-    month_options = list(st.session_state.seasonality_df["Month"])
-    st.session_state.launch_month_df["Launch Month"] = st.session_state.launch_month_df["Launch Month"].apply(
-        lambda x: x if x in month_options else "January"
-    )
+    # Update session state with the new launch dates
+    st.session_state.launch_month_df = project_launch_df
 
     gb = GridOptionsBuilder.from_dataframe(st.session_state.launch_month_df)
     gb.configure_column("Project", editable=False)
-    gb.configure_column(
-        "Launch Month",
-        editable=True,
-        cellEditor='agSelectCellEditor',
-        cellEditorParams={"values": month_options}
-    )
+    gb.configure_column("Launch Date", editable=True, cellEditor='agDateCellEditor', cellEditorParams={'popup': True})
     grid_options = gb.build()
 
     ag_result = AgGrid(
@@ -159,7 +130,7 @@ with tabs[0]:
 
         projects = df['Project'].dropna().unique().tolist()
         if st.session_state.launch_month_df.empty:
-            st.session_state.launch_month_df = pd.DataFrame({"Project": projects, "Launch Month": ["January"] * len(projects)})
+            st.session_state.launch_month_df = pd.DataFrame({"Project": projects, "Launch Date": [datetime.today()] * len(projects)})
 
         selected_project = st.selectbox("Select a Project to View Forecast", ["All"] + projects)
 
@@ -187,9 +158,8 @@ with tabs[0]:
         forecast_results = []
         base_date = datetime.today().replace(day=1)
 
-        project_launch_month = st.session_state.launch_month_df.set_index("Project").to_dict().get("Launch Month", {})
-        launch_month_index = datetime.strptime(project_launch_month.get(selected_project, "January"), "%B").month
-        avg_paid_listings = st.session_state.paid_listings.get(selected_project, 0)
+        project_launch_month = st.session_state.launch_month_df.set_index("Project").to_dict().get("Launch Date", {})
+        launch_date = project_launch_month.get(selected_project, datetime.today())
 
         for _, row in filtered_df.iterrows():
             keyword = row['Keyword']
@@ -206,9 +176,8 @@ with tabs[0]:
                 current_month = base_date + pd.DateOffset(months=month - 1)
                 forecast_month = current_month.strftime("%b %Y")
 
-                # Only skip months before launch month in the first launch year
-                skip = current_month.year == base_date.year and current_month.month < launch_month_index
-
+                # Only skip months before launch date
+                skip = current_month < launch_date
                 if skip:
                     adjusted_clicks = 0
                     position_val = pos
@@ -248,7 +217,6 @@ with tabs[0]:
         forecast_df = pd.DataFrame(forecast_results)
 
         st.subheader("Traffic Forecast")
-
         summary_df = forecast_df.groupby("Month", sort=False)["Forecast Clicks"].sum().reset_index()
 
         chart = px.line(
