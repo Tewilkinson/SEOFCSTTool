@@ -101,30 +101,30 @@ with tabs[1]:
     st.session_state.launch_month_df["Launch Month"] = st.session_state.launch_month_df["Launch Month"].apply(
         lambda x: x if x in month_options else "January"
     )
-    from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+     from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
-        gb = GridOptionsBuilder.from_dataframe(st.session_state.launch_month_df)
-        gb.configure_column("Project", editable=False)
-        gb.configure_column(
-            "Launch Month",
-            editable=True,
-            cellEditor='agSelectCellEditor',
-            cellEditorParams={"values": month_options}
-        )
-        grid_options = gb.build()
+    gb = GridOptionsBuilder.from_dataframe(st.session_state.launch_month_df)
+    gb.configure_column("Project", editable=False)
+    gb.configure_column(
+        "Launch Month",
+        editable=True,
+        cellEditor='agSelectCellEditor',
+        cellEditorParams={"values": month_options}
+    )
+    grid_options = gb.build()
 
-        ag_result = AgGrid(
-            st.session_state.launch_month_df,
-            gridOptions=grid_options,
-            update_mode=GridUpdateMode.VALUE_CHANGED,
-            allow_unsafe_jscode=True,
-            fit_columns_on_grid_load=True,
-            enable_enterprise_modules=False,
-            theme="streamlit",
-            height=300,
-            key="launch_month_aggrid"
-        )
-        st.session_state.launch_month_df = ag_result["data"]
+    ag_result = AgGrid(
+        st.session_state.launch_month_df,
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.VALUE_CHANGED,
+        allow_unsafe_jscode=True,
+        fit_columns_on_grid_load=True,
+        enable_enterprise_modules=False,
+        theme="streamlit",
+        height=300,
+        key="launch_month_aggrid"
+    )
+    st.session_state.launch_month_df = ag_result["data"]
 
 # --- Upload & Forecast Tab ---
 with tabs[0]:
