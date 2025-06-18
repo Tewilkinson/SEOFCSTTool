@@ -17,7 +17,7 @@ if "seasonality_df" not in st.session_state:
     })
 
 if "launch_month_df" not in st.session_state:
-    st.session_state.launch_month_df = pd.DataFrame(columns=["Project", "Launch Month"])
+    st.session_state.launch_month_df = pd.DataFrame(columns=["Project", "Launch Date"])
 
 if "paid_listings" not in st.session_state:
     st.session_state.paid_listings = {}
@@ -63,29 +63,39 @@ with st.sidebar:
 with tabs[1]:
     st.header("Project Launch Dates")
 
-    # Example data for project launch dates (replace with actual data)
-    project_data = [
-        {"Project": "Project A", "Launch Month": "January", "Launch Year": 2023},
-        {"Project": "Project B", "Launch Month": "March", "Launch Year": 2023},
-    ]
-
-    # Creating DataFrame from project data
-    launch_df = pd.DataFrame(project_data)
-
-    # Adding manual launch date inputs
-    launch_df["Manual Launch Date"] = launch_df["Project"].apply(lambda x: st.date_input(f"Select Launch Date for {x}", value=datetime(2023, 1, 1)))
-
-    # Calculate Clicks at 3, 6, 9, and 12 months
-    def calculate_clicks(month):
-        if month == "January":
-            return 1000, 2000, 3000, 4000
+    # Upload Project Data (Example provided by the user)
+    uploaded_file = st.file_uploader("Upload Project Data", type=["csv", "xlsx"])
+    if uploaded_file:
+        if uploaded_file.name.endswith(".csv"):
+            df = pd.read_csv(uploaded_file)
         else:
-            return 500, 1000, 1500, 2000
+            df = pd.read_excel(uploaded_file)
 
-    launch_df["Clicks (3 Months)"], launch_df["Clicks (6 Months)"], launch_df["Clicks (9 Months)"], launch_df["Clicks (12 Months)"] = zip(*launch_df["Launch Month"].apply(calculate_clicks))
+        # Ensure columns are present
+        required_columns = ['Project', 'Keyword', 'MSV', 'Current Position', 'AI Overview', 'Featured Snippet', 'Current URL']
+        if all(col in df.columns for col in required_columns):
+            # Add a column for the manual Launch Date input
+            df['Launch Date'] = df['Project'].apply(lambda x: st.date_input(f"Select Launch Date for {x}", value=datetime(2023, 1, 1)))
+            st.session_state.launch_month_df = df  # Save the data to session_state
 
-    # Display the project launch dates table with manual launch dates
-    st.dataframe(launch_df, use_container_width=True)
+            # Calculate the clicks forecast based on the launch date
+            def calculate_forecast(row):
+                launch_date = row['Launch Date']
+                current_date = datetime.today()
+                months_difference = (current_date.year - launch_date.year) * 12 + current_date.month - launch_date.month
+                forecast = {
+                    "Clicks (3 Months)": row['MSV'] * 0.5 * (1 + 0.1 * months_difference),  # Placeholder model for forecast
+                    "Clicks (6 Months)": row['MSV'] * 1.0 * (1 + 0.1 * months_difference),
+                    "Clicks (9 Months)": row['MSV'] * 1.5 * (1 + 0.1 * months_difference),
+                    "Clicks (12 Months)": row['MSV'] * 2.0 * (1 + 0.1 * months_difference),
+                }
+                return pd.Series(forecast)
+
+            # Apply the forecast calculation
+            forecast_df = df.apply(calculate_forecast, axis=1)
+            df = pd.concat([df, forecast_df], axis=1)
+
+            st.dataframe(df, use_container_width=True)
 
 # --- Upload & Forecast Tab ---
 with tabs[0]:
