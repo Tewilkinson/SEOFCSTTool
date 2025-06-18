@@ -69,16 +69,24 @@ with tabs[1]:
     project_launch_df = st.session_state.launch_month_df.copy()
 
     if not project_launch_df.empty:
-        project_launch_df["Launch Date"] = project_launch_df["Project"].apply(
-            lambda x: st.date_input(f"Select launch date for {x}", value=datetime.today())
-        )
+        for idx, row in project_launch_df.iterrows():
+            project = row['Project']
+            # Using month and year dropdowns for more engaging date selection
+            launch_date = st.selectbox(
+                f"Select launch date for {project}",
+                options=[f"{month} {year}" for year in range(2023, 2031) for month in ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]],
+                key=f"launch_date_{project}",
+                index=st.session_state.launch_month_df.index[idx] if idx < len(st.session_state.launch_month_df) else 0
+            )
+            # Store the selected date in session state
+            st.session_state.launch_month_df.at[idx, 'Launch Date'] = datetime.strptime(launch_date, "%B %Y")
 
     # Update session state with the new launch dates
     st.session_state.launch_month_df = project_launch_df
 
     gb = GridOptionsBuilder.from_dataframe(st.session_state.launch_month_df)
     gb.configure_column("Project", editable=False)
-    gb.configure_column("Launch Date", editable=True, cellEditor='agDateCellEditor', cellEditorParams={'popup': True})
+    gb.configure_column("Launch Date", editable=False)  # Disable column editing
     grid_options = gb.build()
 
     ag_result = AgGrid(
