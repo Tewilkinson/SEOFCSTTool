@@ -1,7 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import io
 import plotly.express as px
 from datetime import datetime, timedelta
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
@@ -71,13 +69,18 @@ with tabs[1]:
     if not project_launch_df.empty:
         for idx, row in project_launch_df.iterrows():
             project = row['Project']
+            # Get the existing launch date if available (fallback to current month if None)
+            existing_launch_date = row['Launch Date'] if pd.notna(row['Launch Date']) else datetime.today()
+            launch_date_str = existing_launch_date.strftime("%B %Y")  # Convert to "Month Year" format
+            
             # Using month and year dropdowns for more engaging date selection
             launch_date = st.selectbox(
                 f"Select launch date for {project}",
                 options=[f"{month} {year}" for year in range(2023, 2031) for month in ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]],
                 key=f"launch_date_{project}",
-                index=st.session_state.launch_month_df.index[idx] if idx < len(st.session_state.launch_month_df) else 0
+                index=[f"{month} {year}" for year in range(2023, 2031) for month in ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]].index(launch_date_str)
             )
+            
             # Store the selected date in session state
             st.session_state.launch_month_df.at[idx, 'Launch Date'] = datetime.strptime(launch_date, "%B %Y")
 
