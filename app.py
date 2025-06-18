@@ -1,7 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import io
 import plotly.express as px
 from datetime import datetime, timedelta
 
@@ -65,7 +63,7 @@ with st.sidebar:
 with tabs[1]:
     st.header("Project Launch Dates")
 
-    # Example data for project launch dates
+    # Example data for project launch dates (replace with actual data)
     project_data = [
         {"Project": "Project A", "Launch Month": "January", "Launch Year": 2023},
         {"Project": "Project B", "Launch Month": "March", "Launch Year": 2023},
@@ -73,6 +71,9 @@ with tabs[1]:
 
     # Creating DataFrame from project data
     launch_df = pd.DataFrame(project_data)
+
+    # Adding manual launch date inputs
+    launch_df["Manual Launch Date"] = launch_df["Project"].apply(lambda x: st.date_input(f"Select Launch Date for {x}", value=datetime(2023, 1, 1)))
 
     # Calculate Clicks at 3, 6, 9, and 12 months
     def calculate_clicks(month):
@@ -83,7 +84,7 @@ with tabs[1]:
 
     launch_df["Clicks (3 Months)"], launch_df["Clicks (6 Months)"], launch_df["Clicks (9 Months)"], launch_df["Clicks (12 Months)"] = zip(*launch_df["Launch Month"].apply(calculate_clicks))
 
-    # Display the project launch dates table
+    # Display the project launch dates table with manual launch dates
     st.dataframe(launch_df, use_container_width=True)
 
 # --- Upload & Forecast Tab ---
