@@ -1,7 +1,10 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
+import io
 import plotly.express as px
 from datetime import datetime, timedelta
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 # --- App Config ---
 st.set_page_config(page_title="SEO Forecast Tool", layout="wide")
@@ -17,7 +20,7 @@ if "seasonality_df" not in st.session_state:
     })
 
 if "launch_month_df" not in st.session_state:
-    st.session_state.launch_month_df = pd.DataFrame(columns=["Project", "Launch Date"])
+    st.session_state.launch_month_df = pd.DataFrame(columns=["Project", "Launch Month"])
 
 if "paid_listings" not in st.session_state:
     st.session_state.paid_listings = {}
@@ -60,6 +63,67 @@ with st.sidebar:
                 f"{project} Paid Listings", min_value=0, max_value=10, value=2, key=f"paid_{project}"
             )
 
+with tabs[1]:
+    st.header("Project Launch Dates")
+
+    # Aggregate forecast clicks if available
+    forecast_summary = pd.DataFrame()
+    if "forecast_df" in locals():
+        forecast_summary = forecast_df.copy()
+        forecast_summary["Month_Idx"] = forecast_summary["Month"].apply(lambda m: datetime.strptime(m, "%b %Y"))
+
+        grouped = forecast_summary.groupby("Project")
+        project_metrics = []
+        for project, group in grouped:
+            group = group.sort_values("Month_Idx")
+            sum_3mo = group.head(3)["Forecast Clicks"].sum()
+            sum_6mo = group.head(6)["Forecast Clicks"].sum()
+            sum_12mo = group.head(12)["Forecast Clicks"].sum()
+            actions = group["Keyword"].nunique()
+            project_metrics.append({
+                "Project": project,
+                "# Keywords": actions,
+                "Clicks (3mo)": sum_3mo,
+                "Clicks (6mo)": sum_6mo,
+                "Clicks (12mo)": sum_12mo
+            })
+        project_metrics_df = pd.DataFrame(project_metrics)
+        st.session_state.launch_month_df = pd.merge(
+            st.session_state.launch_month_df,
+            project_metrics_df,
+            on="Project",
+            how="left"
+        )
+
+    month_options = list(st.session_state.seasonality_df["Month"])
+    st.session_state.launch_month_df["Launch Month"] = st.session_state.launch_month_df["Launch Month"].apply(
+        lambda x: x if x in month_options else "January"
+    )
+
+    gb = GridOptionsBuilder.from_dataframe(st.session_state.launch_month_df)
+    gb.configure_column("Project", editable=False)
+    gb.configure_column(
+        "Launch Month",
+        editable=True,
+        cellEditor='agSelectCellEditor',
+        cellEditorParams={"values": month_options}
+    )
+    grid_options = gb.build()
+
+    ag_result = AgGrid(
+        st.session_state.launch_month_df,
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.VALUE_CHANGED,
+        allow_unsafe_jscode=True,
+        fit_columns_on_grid_load=True,
+        enable_enterprise_modules=False,
+        theme="streamlit",
+        height=300,
+        key="launch_month_aggrid"
+    )
+    st.session_state.launch_month_df = ag_result["data"]
+
+# --- Upload & Forecast Tab ---
 with tabs[0]:
     st.title("SEO Forecast Tool")
 
@@ -94,9 +158,8 @@ with tabs[0]:
             df = pd.read_excel(template_file)
 
         projects = df['Project'].dropna().unique().tolist()
-
         if st.session_state.launch_month_df.empty:
-            st.session_state.launch_month_df = pd.DataFrame({"Project": projects, "Launch Date": [None] * len(projects)})
+            st.session_state.launch_month_df = pd.DataFrame({"Project": projects, "Launch Month": ["January"] * len(projects)})
 
         selected_project = st.selectbox("Select a Project to View Forecast", ["All"] + projects)
 
@@ -124,69 +187,63 @@ with tabs[0]:
         forecast_results = []
         base_date = datetime.today().replace(day=1)
 
-        # Manual launch date input
-        for project in st.session_state.launch_month_df['Project']:
-            launch_date = st.date_input(f"Select Launch Date for {project}", value=datetime(2023, 1, 1))
-            st.session_state.launch_month_df.loc[st.session_state.launch_month_df['Project'] == project, 'Launch Date'] = launch_date
+        project_launch_month = st.session_state.launch_month_df.set_index("Project").to_dict().get("Launch Month", {})
+        launch_month_index = datetime.strptime(project_launch_month.get(selected_project, "January"), "%B").month
+        avg_paid_listings = st.session_state.paid_listings.get(selected_project, 0)
 
-      # Calculate the forecast
-for _, row in filtered_df.iterrows():
-    keyword = row['Keyword']
-    msv = row['MSV']
-    position = row['Current Position']
-    has_aio = str(row['AI Overview']).strip().lower() == 'yes'
-    has_fs = str(row['Featured Snippet']).strip().lower() == 'yes'
+        for _, row in filtered_df.iterrows():
+            keyword = row['Keyword']
+            msv = row['MSV']
+            position = row['Current Position']
+            has_aio = str(row['AI Overview']).strip().lower() == 'yes'
+            has_fs = str(row['Featured Snippet']).strip().lower() == 'yes'
 
-    monthly_gain = get_movement(msv)
-    month = 1
-    pos = position
+            monthly_gain = get_movement(msv)
+            month = 1
+            pos = position
 
-    while month <= 24:
-        current_month = base_date + pd.DateOffset(months=month - 1)
-        forecast_month = current_month.strftime("%b %Y")
+            while month <= 24:
+                current_month = base_date + pd.DateOffset(months=month - 1)
+                forecast_month = current_month.strftime("%b %Y")
 
-        # Get the launch date from the session state and convert to datetime
-        launch_date = pd.to_datetime(st.session_state.launch_month_df.loc[
-            st.session_state.launch_month_df['Project'] == row['Project'], 'Launch Date'].values[0])
+                # Only skip months before launch month in the first launch year
+                skip = current_month.year == base_date.year and current_month.month < launch_month_index
 
-        # Compare datetime objects
-        skip = current_month < launch_date
+                if skip:
+                    adjusted_clicks = 0
+                    position_val = pos
+                    ctr = 0
+                else:
+                    pos = max(1, pos - monthly_gain)
+                    pos_int = int(round(pos))
 
-        if skip:
-            adjusted_clicks = 0
-            position_val = pos
-            ctr = 0
-        else:
-            pos = max(1, pos - monthly_gain)
-            pos_int = int(round(pos))
+                    if pos_int == 1 and has_aio:
+                        ctr = aio_ctr
+                    elif pos_int == 1 and has_fs:
+                        ctr = fs_ctr
+                    else:
+                        ctr = get_ctr_for_position(pos_int)
 
-            if pos_int == 1 and has_aio:
-                ctr = aio_ctr
-            elif pos_int == 1 and has_fs:
-                ctr = fs_ctr
-            else:
-                ctr = get_ctr_for_position(pos_int)
+                    ctr = ctr * (1 - 0.05 * avg_paid_listings)
+                    ctr = max(0, ctr)
 
-            ctr = ctr * (1 - 0.05 * st.session_state.paid_listings.get(row['Project'], 0))
-            ctr = max(0, ctr)
+                    seasonal_adj = st.session_state.seasonality_df.loc[
+                        st.session_state.seasonality_df['Month'] == current_month.strftime("%B"),
+                        'Adjustment (%)'
+                    ].values[0]
+                    adjusted_clicks = (ctr / 100) * msv * (1 + seasonal_adj / 100)
+                    position_val = pos
 
-            seasonal_adj = st.session_state.seasonality_df.loc[
-                st.session_state.seasonality_df['Month'] == current_month.strftime("%B"),
-                'Adjustment (%)'
-            ].values[0]
-            adjusted_clicks = (ctr / 100) * msv * (1 + seasonal_adj / 100)
-            position_val = pos
-
-        forecast_results.append({
-            "Project": row['Project'],
-            "Keyword": keyword,
-            "Month": forecast_month,
-            "Position": round(position_val, 2),
-            "CTR": round(ctr, 2),
-            "Forecast Clicks": round(adjusted_clicks),
-            "Current URL": row['Current URL']
-        })
-        month += 1
+                forecast_results.append({
+                    "Project": row['Project'],
+                    "Keyword": keyword,
+                    "Month": forecast_month,
+                    "Position": round(position_val, 2),
+                    "CTR": round(ctr, 2),
+                    "Forecast Clicks": round(adjusted_clicks),
+                    "Current URL": row['Current URL']
+                })
+                month += 1
 
         forecast_df = pd.DataFrame(forecast_results)
 
@@ -208,10 +265,3 @@ for _, row in filtered_df.iterrows():
 
         csv = forecast_df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Forecast CSV", data=csv, file_name="traffic_forecast.csv")
-
-
-with tabs[1]:
-    st.header("Project Launch Dates")
-    # The table is populated directly in the first tab, so no additional input is needed here
-    if st.session_state.launch_month_df is not None and not st.session_state.launch_month_df.empty:
-        st.dataframe(st.session_state.launch_month_df, use_container_width=True)
