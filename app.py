@@ -194,7 +194,7 @@ with tabs[0]:
                 # Weighted avg rank
                 wr = filtered[(filtered['Project']==proj) & (filtered['Current URL']==url)]
                 weighted = (wr['Current Position'] * wr['MSV']).sum() / wr['MSV'].sum() if not wr.empty else None
-                records.append({'Project':proj,'Action':'Optimisation','URL':url,'Weighted Avg Rank':round(weighted,2) if weighted else None,'3-Month Clicks':int(clicks3),'6-Month Clicks':int(clicks6)})
+                records.append({'Project':proj,'Action':'Optimisation','URL':url,'Weighted Avg Rank':int(round(weighted)) if weighted else None,'3-Month Clicks':int(clicks3),'6-Month Clicks':int(clicks6)})
             # New page actions per keyword without URL
             blank_rows = filtered[(filtered['Project']==proj) & (filtered['Current URL'].isna()| (filtered['Current URL']==''))]
             for _, br in blank_rows.iterrows():
