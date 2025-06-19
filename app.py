@@ -204,7 +204,7 @@ with tabs[0]:
         rank_df = filtered.assign(URL=filtered['Current URL']).groupby(['Project','URL']).apply(
             lambda d: (d['Current Position']*d['MSV']).sum()/d['MSV'].sum()
         ).reset_index(name='Weighted Avg Rank')
-        actions = actions.merge(rank_df, on=['Project','URL'], how='left')(rank_df, on=['Project','URL'], how='left')
+        actions = actions.merge(rank_df, on=['Project','URL'], how='left')
         # Determine action type
         actions['Action'] = actions.apply(
             lambda r: 'Create New Page' if (r['Weighted Avg Rank']>100 or not r['URL']) else 'Optimisation',
