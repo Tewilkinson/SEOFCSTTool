@@ -96,7 +96,6 @@ with tabs[0]:
         st.session_state.df = df.copy()
 
         projects = df['Project'].dropna().unique().tolist()
-        # sync launch_month_df
         st.session_state.launch_month_df = pd.DataFrame({
             "Project": projects,
             "Launch Date": [datetime.today().replace(day=1)]*len(projects)
@@ -105,7 +104,6 @@ with tabs[0]:
         filtered = df if selected_project=="All" else df[df['Project']==selected_project]
         st.dataframe(filtered, use_container_width=True)
 
-        # compute forecast
         records=[]
         base = datetime.today().replace(day=1)
         launch_map = st.session_state.launch_month_df.set_index("Project")['Launch Date'].to_dict()
@@ -119,7 +117,7 @@ with tabs[0]:
                 date = base+DateOffset(months=m-1)
                 month_str = date.strftime("%b %Y")
                 if date<launch:
-                    ctr=0; clicks=0; p=cur_pos
+                    clicks=0
                 else:
                     if m>1: cur_pos=max(1,cur_pos-get_movement(msv))
                     pi=int(round(cur_pos))
@@ -132,9 +130,7 @@ with tabs[0]:
                         st.session_state.seasonality_df['Month']==date.strftime("%B"),'Adjustment (%)'
                     ].iat[0]
                     clicks= (ctr/100)*msv*(1+adj/100)
-                records.append({
-                    "Month":month_str,"Forecast Clicks":round(clicks)
-                })
+                records.append({"Month":month_str,"Forecast Clicks":round(clicks)})
         sum_df=pd.DataFrame(records).groupby('Month',sort=False).sum().reset_index()
         sum_df['Month_dt']=pd.to_datetime(sum_df['Month'],format="%b %Y")
         fig=px.line(sum_df.sort_values('Month_dt'), x='Month_dt', y='Forecast Clicks', markers=True)
@@ -147,7 +143,7 @@ with tabs[1]:
     if st.session_state.df.empty:
         st.info("Upload and run forecast to populate summary.")
     else:
-        # editable launch dates
+        # editable launch dates inline
         lm = st.session_state.launch_month_df.copy()
         lm = st.data_editor(
             lm,
@@ -158,31 +154,32 @@ with tabs[1]:
             key='launch_editor'
         )
         st.session_state.launch_month_df = lm
-        # summary milestones
-        proj_list = st.session_state.df['Project'].dropna().unique()
+        # build summary with launch date column
         rows=[]
-        for p in proj_list:
-            launch = pd.to_datetime(lm.set_index('Project').loc[p,'Launch Date'])
-            tmp = {'Project':p}
-            for months in [3,6,9,12]:
+        for p in st.session_state.df['Project'].dropna().unique():
+            launch_dt = pd.to_datetime(lm.set_index('Project').loc[p,'Launch Date'])
+            row_dict = {"Project": p, "Launch Date": launch_dt.strftime("%b %Y")}
+            for m in [3,6,9,12]:
                 total=0
-                sub= st.session_state.df[st.session_state.df['Project']==p]
-                for _,r in sub.iterrows():
-                    pos=r['Current Position']; msv=r['MSV']
-                    aio=str(r['AI Overview']).lower()=='yes'; fs=str(r['Featured Snippet']).lower()=='yes'
+                subset = st.session_state.df[st.session_state.df['Project']==p]
+                for _,r in subset.iterrows():
+                    pos,msv = r['Current Position'],r['MSV']
+                    aio = str(r['AI Overview']).lower()=='yes'
+                    fs = str(r['Featured Snippet']).lower()=='yes'
                     curp=pos
-                    for i in range(1,months+1):
-                        if i>1: curp=max(1,curp-get_movement(msv))
+                    for i in range(1,m+1):
+                        if i>1: curp = max(1,curp-get_movement(msv))
                     pi=int(round(curp))
                     if pi==1 and aio: ctr=aio_ctr
                     elif pi==1 and fs: ctr=fs_ctr
                     else: ctr=get_ctr_for_position(pi)
-                    ctr=max(0,ctr*(1-0.05*st.session_state.paid_listings.get(p,0)))
-                    mon=(launch+DateOffset(months=months-1)).strftime("%B")
-                    adj=st.session_state.seasonality_df.loc[
+                    ctr = max(0, ctr*(1-0.05*st.session_state.paid_listings.get(p,0)))
+                    mon = (launch_dt+DateOffset(months=m-1)).strftime("%B")
+                    adj = st.session_state.seasonality_df.loc[
                         st.session_state.seasonality_df['Month']==mon,'Adjustment (%)'
                     ].iat[0]
                     total += (ctr/100)*msv*(1+adj/100)
-                tmp[f"{months}-Month Clicks"]=round(total)
-            rows.append(tmp)
-        st.dataframe(pd.DataFrame(rows), use_container_width=True)
+                row_dict[f"{m}-Month Clicks"] = round(total)
+            rows.append(row_dict)
+        summary_table = pd.DataFrame(rows)
+        st.dataframe(summary_table, use_container_width=True)
