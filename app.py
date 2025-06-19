@@ -140,12 +140,18 @@ with tabs[0]:
         fig.update_xaxes(tickformat='%b %Y')
         st.plotly_chart(fig, use_container_width=True)
 
-        # Forecast summary table by scenario and month
+                # Forecast summary table by scenario and month
         summary = chart_df.copy()
         summary['Month'] = summary['Date'].dt.strftime('%b %Y')
+        summary['Month_dt'] = summary['Date']
         summary_pivot = summary.pivot_table(
-            index='Month', columns='Scenario', values='Clicks', aggfunc='sum'
+            index=['Month','Month_dt'],
+            columns='Scenario',
+            values='Clicks',
+            aggfunc='sum'
         ).reset_index()
+        # Sort by actual date and drop helper column
+        summary_pivot = summary_pivot.sort_values('Month_dt').drop(columns='Month_dt')
         summary_pivot.columns.name = None
         st.subheader("Forecast Summary by Scenario")
         st.dataframe(summary_pivot, use_container_width=True)
