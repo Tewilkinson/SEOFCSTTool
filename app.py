@@ -9,16 +9,16 @@ st.set_page_config(page_title="SEO Forecast Tool", layout="wide")
 
 # --- Initialize session state ---
 for key, df in {
-    "ctr_df": pd.DataFrame({"Position": list(range(1, 11)), "CTR": [32,25,18,12,10,8,6,4,2,1]}),
+    "ctr_df": pd.DataFrame({"Position": list(range(1, 11)), "CTR": [32, 25, 18, 12, 10, 8, 6, 4, 2, 1]}),
     "seasonality_df": pd.DataFrame({
         "Month": ["January","February","March","April","May","June","July","August","September","October","November","December"],
-        "Adjustment (%)": [0,0,0,0,0,-20,0,0,0,0,0,0]
+        "Adjustment (%)": [0, 0, 0, 0, 0, -20, 0, 0, 0, 0, 0, 0]
     }),
 }.items():
     if key not in st.session_state:
         st.session_state[key] = df.copy()
 if "launch_month_df" not in st.session_state:
-    st.session_state.launch_month_df = pd.DataFrame(columns=["Project","Launch Date"])
+    st.session_state.launch_month_df = pd.DataFrame(columns=["Project", "Launch Date"])
 if "paid_listings" not in st.session_state:
     st.session_state.paid_listings = {}
 if "df" not in st.session_state:
@@ -26,14 +26,18 @@ if "df" not in st.session_state:
 
 # --- Helper functions ---
 def get_movement(msv):
-    if msv <= 500: return 1.5
-    if msv <= 2000: return 1.0
-    if msv <= 10000: return 0.5
+    if msv <= 500:
+        return 1.5
+    if msv <= 2000:
+        return 1.0
+    if msv <= 10000:
+        return 0.5
     return 0.25
+
 
 def get_ctr_for_position(pos):
     ctrs = st.session_state.ctr_df
-    return float(ctrs.loc[ctrs['Position']==pos,'CTR'].iloc[0]) if pos in ctrs['Position'].tolist() else float(ctrs['CTR'].iloc[-1])
+    return float(ctrs.loc[ctrs['Position'] == pos, 'CTR'].iloc[0]) if pos in ctrs['Position'].tolist() else float(ctrs['CTR'].iloc[-1])
 
 # --- Sidebar Controls ---
 with st.sidebar:
@@ -69,19 +73,19 @@ with tabs[0]:
     st.download_button(
         "Download Template CSV",
         data=pd.DataFrame({
-            "Project":["Example"],
-            "Keyword":["shoes for men"],
-            "MSV":[12100],
-            "Current Position":[8],
-            "AI Overview":["Yes"],
-            "Featured Snippet":["No"],
-            "Current URL":["https://example.com"]
+            "Project": ["Example"],
+            "Keyword": ["shoes for men"],
+            "MSV": [12100],
+            "Current Position": [8],
+            "AI Overview": ["Yes"],
+            "Featured Snippet": ["No"],
+            "Current URL": ["https://example.com"]
         }).to_csv(index=False).encode('utf-8'),
         file_name="template.csv"
     )
 
     # Upload and display input
-    uploaded = st.file_uploader("Upload CSV/XLSX", type=["csv","xlsx"])
+    uploaded = st.file_uploader("Upload CSV/XLSX", type=["csv", "xlsx"])
     if uploaded:
         df = pd.read_csv(uploaded) if uploaded.name.endswith('.csv') else pd.read_excel(uploaded)
         st.session_state.df = df.copy()
@@ -90,10 +94,10 @@ with tabs[0]:
         if set(projs) != set(st.session_state.launch_month_df['Project']):
             st.session_state.launch_month_df = pd.DataFrame({
                 "Project": projs,
-                "Launch Date": [datetime.today().replace(day=1)]*len(projs)
+                "Launch Date": [datetime.today().replace(day=1)] * len(projs)
             })
-        selected = st.selectbox("Select Project", ["All"]+projs)
-        filtered = df if selected == "All" else df[df['Project']==selected]
+        selected = st.selectbox("Select Project", ["All"] + projs)
+        filtered = df if selected == "All" else df[df['Project'] == selected]
         st.subheader("Keyword Inputs")
         st.dataframe(filtered, use_container_width=True)
 
@@ -104,11 +108,10 @@ with tabs[0]:
         for _, r in filtered.iterrows():
             project = r['Project']
             msv = r['MSV']
-            cur_pos = r['Current Position']
+            pos = r['Current Position']
             has_aio = str(r['AI Overview']).strip().lower() == 'yes'
             has_fs = str(r['Featured Snippet']).strip().lower() == 'yes'
             launch = launch_map.get(project, base)
-            pos = cur_pos
             for m in range(1, 25):
                 date = base + DateOffset(months=m-1)
                 label = date.strftime('%b %Y')
@@ -141,7 +144,7 @@ with tabs[0]:
         st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Forecast Summary Table")
-        st.dataframe(summary[['Month','Clicks']], use_container_width=True)
+        st.dataframe(summary[['Month', 'Clicks']], use_container_width=True)
 
 # --- Project Summary Tab ---
 with tabs[1]:
@@ -152,11 +155,11 @@ with tabs[1]:
         # build summary rows
         rows = []
         launch_map = st.session_state.launch_month_df.set_index('Project')['Launch Date']
-        for project, launch_dt in launch_map.iteritems():
+        for project, launch_dt in launch_map.items():
             launch_date = pd.to_datetime(launch_dt)
             row = {"Project": project, "Launch Date": launch_date.strftime('%b %Y')}
-            subset = st.session_state.df[st.session_state.df['Project']==project]
-            for m in [3,6,9,12]:
+            subset = st.session_state.df[st.session_state.df['Project'] == project]
+            for m in [3, 6, 9, 12]:
                 total_clicks = 0
                 for _, r in subset.iterrows():
                     pos = r['Current Position']
@@ -164,8 +167,8 @@ with tabs[1]:
                     has_aio = str(r['AI Overview']).strip().lower() == 'yes'
                     has_fs = str(r['Featured Snippet']).strip().lower() == 'yes'
                     p = pos
-                    for _ in range(1, m+1):
-                        if _ > 1:
+                    for i in range(1, m+1):
+                        if i > 1:
                             p = max(1, p - get_movement(msv))
                     pi = int(round(p))
                     if pi == 1 and has_aio:
