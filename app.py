@@ -88,13 +88,13 @@ with st.sidebar:
         'Featured Snippet CTR (%)',
         min_value=0.0,
         max_value=100.0,
-        value=18.0
+        value=11.0
     )
     aio_ctr = st.number_input(
         'AI Overview CTR (%)',
         min_value=0.0,
         max_value=100.0,
-        value=12.0
+        value=5.0
     )
 
     # Paid listings selector
