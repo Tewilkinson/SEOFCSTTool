@@ -94,7 +94,7 @@ with st.sidebar:
         )
 
 # --- Tabs ---
-tabs = st.tabs(['Upload & Forecast','Project Summary'])
+tabs = st.tabs(['Dashboard','Project Summary'])
 
 # --- Upload & Forecast Tab ---
 with tabs[0]:
