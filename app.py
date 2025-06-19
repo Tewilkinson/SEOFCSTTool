@@ -200,11 +200,11 @@ with tabs[0]:
         a3 = action_df[action_df['Date']==m3].groupby(['Project','URL'])['Clicks'].sum().reset_index(name='3-Month Clicks')
         a6 = action_df[action_df['Date']==m6].groupby(['Project','URL'])['Clicks'].sum().reset_index(name='6-Month Clicks')
         actions = a3.merge(a6, on=['Project','URL'], how='outer').fillna(0)
-        # Calculate weighted average current rank per URL
-        rank_df = filtered.groupby(['Project','URL']).apply(
+                # Calculate weighted average current rank per URL
+        rank_df = filtered.assign(URL=filtered['Current URL']).groupby(['Project','URL']).apply(
             lambda d: (d['Current Position']*d['MSV']).sum()/d['MSV'].sum()
         ).reset_index(name='Weighted Avg Rank')
-        actions = actions.merge(rank_df, on=['Project','URL'], how='left')
+        actions = actions.merge(rank_df, on=['Project','URL'], how='left')(rank_df, on=['Project','URL'], how='left')
         # Determine action type
         actions['Action'] = actions.apply(
             lambda r: 'Create New Page' if (r['Weighted Avg Rank']>100 or not r['URL']) else 'Optimisation',
