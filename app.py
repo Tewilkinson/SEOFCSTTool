@@ -98,8 +98,8 @@ tabs = st.tabs(['Upload & Forecast','Project Summary'])
 
 # --- Upload & Forecast Tab ---
 with tabs[0]:
-    st.title('Upload & Forecast')
-    uploaded = st.file_uploader('Upload CSV or Excel', type=['csv','xlsx'])
+    st.title('Keyword SEO FCST Tool')
+    uploaded = st.file_uploader('SEO FCST Tool', type=['csv','xlsx'])
     if not uploaded:
         st.info('Please upload a CSV or Excel file to start forecasting.')
         st.stop()
