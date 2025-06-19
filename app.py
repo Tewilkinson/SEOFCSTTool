@@ -84,20 +84,23 @@ with tabs[0]:
     )
     uploaded = st.file_uploader("Upload CSV/XLSX", type=["csv", "xlsx"])
     if uploaded:
+        # Load data
         df = pd.read_csv(uploaded) if uploaded.name.endswith('.csv') else pd.read_excel(uploaded)
         st.session_state.df = df.copy()
+
+        # Sync projects & launch dates
         projs = df['Project'].dropna().unique().tolist()
         if set(projs) != set(st.session_state.launch_month_df['Project']):
             st.session_state.launch_month_df = pd.DataFrame({
                 "Project": projs,
                 "Launch Date": [datetime.today().replace(day=1)] * len(projs)
             })
+
+        # Select project
         selected = st.selectbox("Select Project", ["All"] + projs)
         filtered = df if selected == "All" else df[df['Project'] == selected]
-        st.subheader("Keyword Inputs")
-        st.dataframe(filtered, use_container_width=True)
 
-        # Compute scenarios
+        # Compute and plot scenarios BEFORE showing inputs
         base = datetime.today().replace(day=1)
         launch_map = {k: pd.to_datetime(v) for k, v in st.session_state.launch_month_df.set_index('Project')['Launch Date'].to_dict().items()}
         data = []
@@ -112,14 +115,13 @@ with tabs[0]:
                 current_pos = pos
                 for m in range(1, 25):
                     date = base + DateOffset(months=m-1)
-                    label = date.strftime('%b %Y')
                     if date < launch:
                         clicks = 0
                     else:
                         if m > 1:
                             current_pos = max(1, current_pos - get_movement(msv))
                         pi = int(round(current_pos))
-                        # Determine CTR per scenario
+                        # CTR logic
                         if scenario == "High":
                             ctr = get_ctr_for_position(pi)
                         elif scenario == "Medium":
@@ -130,39 +132,39 @@ with tabs[0]:
                             else:
                                 ctr = get_ctr_for_position(pi)
                             avg_paid = st.session_state.paid_listings.get(project, 0)
-                            ctr = max(0, ctr * (1 - 0.05 * avg_paid))
-                        else:  # Low scenario
+                            ctr *= (1 - 0.05 * avg_paid)
+                        else:
                             if pi == 1 and has_aio:
                                 ctr = aio_ctr
                             elif pi == 1 and has_fs:
                                 ctr = fs_ctr
                             else:
                                 ctr = get_ctr_for_position(pi)
-                            avg_paid = st.session_state.paid_listings.get(project, 0) * 1.5
-                            ctr = max(0, ctr * (1 - 0.05 * avg_paid))
+                            avg_paid = st.session_state.paid_listings.get(project, 0)
+                            ctr *= (1 - 0.1 * avg_paid)
                         adj = st.session_state.seasonality_df.loc[
-                            st.session_state.seasonality_df['Month'] == date.strftime('%B'),
-                            'Adjustment (%)'
+                            st.session_state.seasonality_df['Month'] == date.strftime('%B'), 'Adjustment (%)'
                         ].iloc[0]
                         clicks = (ctr/100) * msv * (1 + adj/100)
                     data.append({"Scenario": scenario, "Date": date, "Clicks": round(clicks)})
         df_plot = pd.DataFrame(data)
 
-        # Plot at top
+        # Line chart at top
         st.subheader("Projected Traffic Scenarios Over Time")
-        fig = px.line(
-            df_plot.groupby(["Scenario","Date"])['Clicks'].sum().reset_index(),
-            x='Date', y='Clicks', color='Scenario', markers=True,
-            title="High / Medium / Low Scenarios"
-        )
+        plot_df = df_plot.groupby(["Scenario","Date"])['Clicks'].sum().reset_index()
+        fig = px.line(plot_df, x='Date', y='Clicks', color='Scenario', markers=True)
         fig.update_xaxes(tickformat='%b %Y')
         st.plotly_chart(fig, use_container_width=True)
 
-        # Show medium table
-        summary = df_plot[df_plot['Scenario']=='Medium'].groupby('Date')['Clicks'].sum().reset_index()
+        # Medium summary table
+        summary = df_plot[df_plot['Scenario'] == 'Medium'].groupby('Date')['Clicks'].sum().reset_index()
         summary['Month'] = summary['Date'].dt.strftime('%b %Y')
         st.subheader("Forecast Summary Table (Medium)")
         st.dataframe(summary[['Month', 'Clicks']], use_container_width=True)
+
+        # Keyword inputs below
+        st.subheader("Keyword Inputs")
+        st.dataframe(filtered, use_container_width=True)
 
 # --- Project Summary Tab ---
 with tabs[1]:
@@ -197,8 +199,7 @@ with tabs[1]:
                     ctr = max(0, ctr * (1 - 0.05 * avg_paid))
                     adj_month = (launch_dt + DateOffset(months=m-1)).strftime('%B')
                     seasonal_adj = st.session_state.seasonality_df.loc[
-                        st.session_state.seasonality_df['Month'] == adj_month,
-                        'Adjustment (%)'
+                        st.session_state.seasonality_df['Month'] == adj_month, 'Adjustment (%)'
                     ].iloc[0]
                     total_clicks += (ctr/100) * msv * (1 + seasonal_adj/100)
                 row[f"{m}-Month Clicks"] = round(total_clicks)
@@ -206,9 +207,7 @@ with tabs[1]:
         summary_df = pd.DataFrame(rows)
         edited = st.data_editor(
             summary_df,
-            column_config={
-                'Launch Date': st.column_config.DateColumn('Launch Date')
-            },
+            column_config={ 'Launch Date': st.column_config.DateColumn('Launch Date') },
             use_container_width=True,
             key='final_summary'
         )
