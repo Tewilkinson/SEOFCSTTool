@@ -131,7 +131,8 @@ with tabs[0]:
                         ].iloc[0]
                         clicks = (ctr/100) * msv * (1+adj/100)
                     rec.append({"Scenario":scenario,"Date":date,"Clicks":round(clicks)})
-        plot_df = pd.DataFrame(rec).groupby(["Scenario","Date"]))['Clicks'].sum().reset_index()
+        # Fixed syntax: removed extra parenthesis
+        plot_df = pd.DataFrame(rec).groupby(["Scenario","Date"])['Clicks'].sum().reset_index()
 
         st.subheader("Projected Traffic Scenarios")
         fig = px.line(plot_df, x='Date', y='Clicks', color='Scenario', markers=True)
