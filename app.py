@@ -131,7 +131,10 @@ with tabs[0]:
                     ].iloc[0]
                     clicks = (ctr/100)*msv*(1+adj/100)
                 rec.append({"Scenario":scenario,"Date":date,"Clicks":round(clicks)})
-    plot_df = pd.DataFrame(rec).groupby(["Scenario","Date"])['Clicks'].sum().reset_index()
+    ]
+    # Keep original rec records for project-level aggregation
+    rec_df = pd.DataFrame(rec)
+    plot_df = rec_df.groupby(["Scenario","Date"])['Clicks'].sum().reset_index()(["Scenario","Date"])['Clicks'].sum().reset_index()
 
     # KPI Date Pickers Side-by-Side
     st.subheader("Forecast KPIs")
@@ -174,14 +177,19 @@ with tabs[0]:
         st.subheader("Forecast Summary by Scenario")
         st.dataframe(summary_pivot, use_container_width=True)
 
-        # Combo bar+line: Medium clicks by project + keyword count
-        st.subheader("Project Comparison (Medium vs. Keyword Count)")
-        project_clicks = chart_df[chart_df['Scenario']=='Medium'].groupby('Project')['Clicks'].sum().reset_index()
+                # Combo bar+line: Medium clicks by project + keyword count
+        # Use rec_df to aggregate Medium scenario by project
+        proj_mask = (rec_df['Scenario']=='Medium') & mask.repeat(len(filtered))
+        medium_df = rec_df[rec_df['Scenario']=='Medium']
+        medium_df = medium_df[medium_df['Date'].dt.date.between(start_date, end_date)]
+        project_clicks = medium_df.groupby('Project')['Clicks'].sum().reset_index()
         keyword_counts = filtered.groupby('Project')['Keyword'].count().reset_index(name='Keyword Count')
-        combo_df = pd.merge(project_clicks, keyword_counts, on='Project')
-        fig2 = px.bar(combo_df, x='Project', y='Clicks', labels={'Clicks':'Medium Clicks'})
-        fig2.add_scatter(x=combo_df['Project'], y=combo_df['Keyword Count'], mode='lines+markers', name='Keyword Count', yaxis='y2')
+        combo_df = pd.merge(project_clicks, keyword_counts, on='Project', how='left').fillna(0)
+        fig2 = go.Figure()
+        fig2.add_trace(go.Bar(x=combo_df['Project'], y=combo_df['Clicks'], name='Medium Clicks'))
+        fig2.add_trace(go.Scatter(x=combo_df['Project'], y=combo_df['Keyword Count'], mode='lines+markers', name='Keyword Count', yaxis='y2'))
         fig2.update_layout(
+            yaxis=dict(title='Medium Clicks'),
             yaxis2=dict(overlaying='y', side='right', title='Keyword Count'),
             legend=dict(x=0.7, y=1.1)
         )
