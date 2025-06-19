@@ -34,7 +34,7 @@ if 'ctr_df' not in st.session_state:
 if 'seasonality_df' not in st.session_state:
     st.session_state.seasonality_df = pd.DataFrame({
         'Month': ['January','February','March','April','May','June','July','August','September','October','November','December'],
-        'Adjustment (%)': [10,6,11,12,15,-5,-10,-20,8,11,7,-5]
+        'Adjustment (%)': [0,0,0,0,0,-20,0,0,0,0,0,0]
     })
 if 'paid_listings' not in st.session_state:
     st.session_state.paid_listings = {}
@@ -78,19 +78,19 @@ with st.sidebar:
     )
     fs_ctr = st.number_input('Featured Snippet CTR (%)', min_value=0.0, max_value=100.0, value=18.0)
     aio_ctr = st.number_input('AI Overview CTR (%)', min_value=0.0, max_value=100.0, value=12.0)
-    st.subheader('Avg. Paid Listings per Project')
+        st.subheader('Avg. Paid Listings per Project')
     if not st.session_state.launch_month_df.empty:
-        project_list = st.selectbox(
+        project = st.selectbox(
             'Select Project for Paid Listings',
             options=st.session_state.launch_month_df['Project'].tolist(),
             key='paid_project_selector'
         )
-        st.session_state.paid_listings[project_list] = st.slider(
-            f"{project_list} Paid Listings",
+        st.session_state.paid_listings[project] = st.slider(
+            f"{project} Paid Listings",
             min_value=0,
             max_value=10,
-            value=st.session_state.paid_listings.get(project_list, 2),
-            key=f"paid_{project_list}"
+            value=st.session_state.paid_listings.get(project, 2),
+            key=f"paid_{project}"
         )
 
 # --- Tabs ---
