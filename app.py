@@ -173,8 +173,12 @@ with tabs[0]:
         st.subheader("Forecast Summary by Scenario")
         st.dataframe(pivot, use_container_width=True)
 
-        # Combo chart
-        med = rec_df[mask & (rec_df['Scenario']=='Medium')].groupby('Project')['Clicks'].sum().reset_index()
+                # Combo chart: Medium clicks vs keyword count
+        # Recompute medium clicks filtered by date range on rec_df
+        med_df = rec_df[(rec_df['Scenario']=='Medium') &
+                        (rec_df['Date'].dt.date >= start_date) &
+                        (rec_df['Date'].dt.date <= end_date)]
+        med = med_df.groupby('Project')['Clicks'].sum().reset_index()
         kc = filtered.groupby('Project')['Keyword'].count().reset_index(name='Keyword Count')
         combo = med.merge(kc, on='Project', how='left').fillna(0)
         fig2 = go.Figure()
@@ -197,7 +201,11 @@ with tabs[0]:
         actions = a3.merge(a6, on=['Project','URL'], how='outer').fillna(0)
         rank_df = filtered.groupby(['Project','Current URL']).apply(lambda d: (d['Current Position']*d['MSV']).sum()/d['MSV'].sum()).reset_index(name='Weighted Avg Rank')
         actions = actions.merge(rank_df, left_on=['Project','URL'], right_on=['Project','Current URL'], how='left').drop(columns='Current URL')
-        actions['Action'] = actions.apply(lambda r: 'Net New Page' if (r['Weighted Avg Rank']>100 or not r['URL']) else 'Optimisation', axis=1)
+                # Determine action type: optimisation if URL exists, else create new page
+        actions['Action'] = actions.apply(
+            lambda r: 'Create New Page' if (r['Weighted Avg Rank']>100 or not r['URL']) else 'Optimisation',
+            axis=1
+        )
         actions['Recommended URL'] = actions.apply(lambda r: f"https://example.com/{slugify(r['Project'])}/{slugify(r['URL'] or r['Project'] + ' ' + r['Action'])}" if r['Action']=='Net New Page' else r['URL'], axis=1)
         st.subheader("Optimisation Actions Summary")
         st.dataframe(actions[['Project','Action','URL','Recommended URL','Weighted Avg Rank','3-Month Clicks','6-Month Clicks']], use_container_width=True)
