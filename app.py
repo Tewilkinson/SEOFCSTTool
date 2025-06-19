@@ -5,7 +5,7 @@ from datetime import datetime
 from pandas import DateOffset
 
 # --- App Config ---
-st.set_page_config(page_title="SEO Forecast Tool", layout="wide")
+st.set_page_config(page_title="SEO Forecast Tool", layout="wide", initial_sidebar_state="expanded")
 
 
 # --- Initialize session state ---
