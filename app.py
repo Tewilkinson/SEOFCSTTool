@@ -6,25 +6,7 @@ from pandas import DateOffset
 
 # --- App Config ---
 st.set_page_config(page_title="SEO Forecast Tool", layout="wide")
-# Sticky sidebar CSS
-st.markdown(
-    """
-    <style>
-    [data-testid="stSidebar"] {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 280px;
-        height: 100vh;
-        overflow: auto;
-    }
-    [data-testid="stAppViewContainer"] {
-        margin-left: 300px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+
 
 # --- Initialize session state ---
 if "ctr_df" not in st.session_state:
