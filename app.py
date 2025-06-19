@@ -126,8 +126,8 @@ with tabs[0]:
     if end_date < start_date:
         st.error("End date must be on or after start date.")
     else:
-        kpi_mask = (plot_df['Date'].dt.date >= start_date) & (plot_df['Date'].dt.date <= end_date)
-        kpi_vals = plot_df[kpi_mask].groupby('Scenario')['Clicks'].sum().to_dict()
+        mask = (plot_df['Date'].dt.date >= start_date) & (plot_df['Date'].dt.date <= end_date)
+        kpi_vals = plot_df[mask].groupby('Scenario')['Clicks'].sum().to_dict()
         c1, c2, c3 = st.columns(3)
         c1.metric("High Forecast", kpi_vals.get("High", 0))
         c2.metric("Medium Forecast", kpi_vals.get("Medium", 0))
@@ -135,16 +135,20 @@ with tabs[0]:
 
         # Filtered line chart
         st.subheader("Projected Traffic Scenarios Over Time")
-        chart_df = plot_df[kpi_mask]
+        chart_df = plot_df[mask]
         fig = px.line(chart_df, x='Date', y='Clicks', color='Scenario', markers=True)
         fig.update_xaxes(tickformat='%b %Y')
         st.plotly_chart(fig, use_container_width=True)
 
-        # Medium summary
-        med = chart_df[chart_df['Scenario']=='Medium'].groupby('Date')['Clicks'].sum().reset_index()
-        med['Month'] = med['Date'].dt.strftime('%b %Y')
-        st.subheader("Forecast Summary (Medium)")
-        st.dataframe(med[['Month','Clicks']], use_container_width=True)
+        # Forecast summary table by scenario and month
+        summary = chart_df.copy()
+        summary['Month'] = summary['Date'].dt.strftime('%b %Y')
+        summary_pivot = summary.pivot_table(
+            index='Month', columns='Scenario', values='Clicks', aggfunc='sum'
+        ).reset_index()
+        summary_pivot.columns.name = None
+        st.subheader("Forecast Summary by Scenario")
+        st.dataframe(summary_pivot, use_container_width=True)
 
     # Keyword inputs
     st.subheader("Keyword Inputs")
