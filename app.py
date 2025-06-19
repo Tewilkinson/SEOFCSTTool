@@ -136,6 +136,8 @@ with tabs[0]:
                     clicks = (ctr/100)*msv*(1+adj/100)
                 rec.append({"Scenario":scenario,"Project":proj,"URL":url,"Keyword":kw,"Date":date,"Clicks":round(clicks)})
     rec_df = pd.DataFrame(rec)
+        # Convert NaN URLs to empty string so groupby includes new-page entries
+        rec_df['URL'] = rec_df['URL'].fillna('')
     plot_df = rec_df.groupby(["Scenario","Date"])['Clicks'].sum().reset_index()
 
     # KPI Pickers
