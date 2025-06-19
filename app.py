@@ -130,8 +130,9 @@ with tabs[0]:
                         st.session_state.seasonality_df['Month']==date.strftime('%B'),'Adjustment (%)'
                     ].iloc[0]
                     clicks = (ctr/100)*msv*(1+adj/100)
-                rec.append({"Scenario":scenario,"Date":date,"Clicks":round(clicks)})
-    # Keep original rec records for project-level aggregation
+                # Include project for aggregation
+                rec.append({"Scenario":scenario,"Project":project,"Date":date,"Clicks":round(clicks)})
+    # Keep original rec records for project-level aggregation for project-level aggregation
     rec_df = pd.DataFrame(rec)
     plot_df = rec_df.groupby(["Scenario","Date"])['Clicks'].sum().reset_index()
 
