@@ -12,8 +12,8 @@ if "ctr_df" not in st.session_state:
     st.session_state.ctr_df = pd.DataFrame({"Position": list(range(1, 11)), "CTR": [32, 25, 18, 12, 10, 8, 6, 4, 2, 1]})
 if "seasonality_df" not in st.session_state:
     st.session_state.seasonality_df = pd.DataFrame({
-        "Month": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
-        "Adjustment (%)": [0, 0, 0, 0, 0, -20, 0, 0, 0, 0, 0, 0]
+        "Month": ["January","February","March","April","May","June","July","August","September","October","November","December"],
+        "Adjustment (%)": [0,0,0,0,0,-20,0,0,0,0,0,0]
     })
 if "launch_month_df" not in st.session_state:
     st.session_state.launch_month_df = pd.DataFrame(columns=["Project", "Launch Date"])
@@ -21,8 +21,6 @@ if "paid_listings" not in st.session_state:
     st.session_state.paid_listings = {}
 if "df" not in st.session_state:
     st.session_state.df = pd.DataFrame()
-if "forecast_df" not in st.session_state:
-    st.session_state.forecast_df = pd.DataFrame()
 
 # --- Helper functions ---
 def get_movement(msv):
@@ -78,19 +76,19 @@ tabs = st.tabs(["Upload & Forecast", "Project Launch & Summary"])
 with tabs[0]:
     st.title("SEO Forecast Tool")
 
-    # Template Download
-def create_template():
-    data = {
-        "Project": ["Example Project"],
-        "Keyword": ["shoes for men"],
-        "MSV": [12100],
-        "Current Position": [8],
-        "AI Overview": ["Yes"],
-        "Featured Snippet": ["No"],
-        "Current URL": ["https://example.com/shoes-for-men"]
-    }
-    df_template = pd.DataFrame(data)
-    return df_template.to_csv(index=False).encode("utf-8")
+    st.subheader("Download Forecast Template")
+    def create_template():
+        data = {
+            "Project": ["Example Project"],
+            "Keyword": ["shoes for men"],
+            "MSV": [12100],
+            "Current Position": [8],
+            "AI Overview": ["Yes"],
+            "Featured Snippet": ["No"],
+            "Current URL": ["https://example.com/shoes-for-men"]
+        }
+        df_template = pd.DataFrame(data)
+        return df_template.to_csv(index=False).encode("utf-8")
 
     st.download_button(
         label="Download Template CSV",
@@ -177,7 +175,6 @@ def create_template():
                 })
 
         forecast_df = pd.DataFrame(forecast_results)
-        st.session_state.forecast_df = forecast_df
 
         # --- Line Chart ---
         summary_df = forecast_df.groupby("Month", sort=False)["Forecast Clicks"].sum().reset_index()
@@ -212,34 +209,29 @@ with tabs[1]:
 
         rows = []
         for project in st.session_state.df['Project'].dropna().unique():
-            # Launch date selector
             current_launch = st.session_state.launch_month_df.set_index('Project').loc[project, 'Launch Date']
             default_idx = options.index(current_launch.strftime("%B %Y")) if current_launch.strftime("%B %Y") in options else 0
-            selected = st.selectbox(f"Launch Date for {project}", options=options, index=default_idx, key=f"launch2_{project}")
+            selected = st.selectbox(f"Launch Date for {project}", options, index=default_idx, key=f"launch2_{project}")
             launch_dt = datetime.strptime(selected, "%B %Y")
             st.session_state.launch_month_df.loc[
                 st.session_state.launch_month_df['Project'] == project, 'Launch Date'
             ] = launch_dt
 
-            # Calculate milestone clicks
             total_clicks = {}
             project_df = st.session_state.df[st.session_state.df['Project'] == project]
-            for months in [3, 6, 9, 12]:
+            for months in [3,6,9,12]:
                 sum_clicks = 0
                 for _, row in project_df.iterrows():
                     msv = row['MSV']
                     pos = row['Current Position']
                     has_aio = str(row['AI Overview']).strip().lower() == 'yes'
                     has_fs = str(row['Featured Snippet']).strip().lower() == 'yes'
-
-                    # simulate movement
                     pos_i = pos
-                    for i in range(1, months + 1):
+                    for i in range(1, months+1):
                         if i > 1:
                             pos_i = max(1, pos_i - get_movement(msv))
                     pos_int = int(round(pos_i))
 
-                    # CTR determination
                     if pos_int == 1 and has_aio:
                         ctr_val = aio_ctr
                     elif pos_int == 1 and has_fs:
@@ -249,14 +241,13 @@ with tabs[1]:
                     avg_paid = st.session_state.paid_listings.get(project, 0)
                     ctr_val = max(0, ctr_val * (1 - 0.05 * avg_paid))
 
-                    # seasonality
-                    month_name = (launch_dt + DateOffset(months=months - 1)).strftime("%B")
+                    month_name = (launch_dt + DateOffset(months=months-1)).strftime("%B")
                     seasonal = st.session_state.seasonality_df.loc[
                         st.session_state.seasonality_df['Month'] == month_name,
                         'Adjustment (%)'
                     ].values[0]
 
-                    sum_clicks += (ctr_val / 100) * msv * (1 + seasonal / 100)
+                    sum_clicks += (ctr_val / 100) * row['MSV'] * (1 + seasonal/100)
                 total_clicks[months] = round(sum_clicks)
 
             rows.append({
