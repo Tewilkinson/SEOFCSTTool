@@ -62,27 +62,32 @@ with st.sidebar:
     st.download_button('Download Template CSV', data=create_template(), file_name='forecast_template.csv')
     st.subheader('CTR by Position')
     st.session_state.ctr_df = st.data_editor(
-    )
         st.session_state.ctr_df,
         column_config={'CTR': st.column_config.NumberColumn('CTR (%)', min_value=0.0, max_value=100.0)},
         use_container_width=True,
+        hide_index=True,
         key='ctr_editor'
     )
     st.subheader('Seasonality by Month')
     st.session_state.seasonality_df = st.data_editor(
-    )
         st.session_state.seasonality_df,
         column_config={'Adjustment (%)': st.column_config.NumberColumn('Adjustment (%)', min_value=-100.0, max_value=100.0)},
         use_container_width=True,
+        hide_index=True,
         key='season_editor'
     )
     fs_ctr = st.number_input('Featured Snippet CTR (%)', min_value=0.0, max_value=100.0, value=18.0)
     aio_ctr = st.number_input('AI Overview CTR (%)', min_value=0.0, max_value=100.0, value=12.0)
     st.subheader('Avg. Paid Listings per Project')
-    for p in st.session_state.launch_month_df['Project'] if not st.session_state.launch_month_df.empty else []:
-        st.session_state.paid_listings[p] = st.slider(
-            f'{p} Paid Listings', min_value=0, max_value=10, value=st.session_state.paid_listings.get(p,2), key=f'paid_{p}'
-        )
+    if not st.session_state.launch_month_df.empty:
+        for p in st.session_state.launch_month_df['Project']:
+            st.session_state.paid_listings[p] = st.slider(
+                f'{p} Paid Listings',
+                min_value=0,
+                max_value=10,
+                value=st.session_state.paid_listings.get(p, 2),
+                key=f'paid_{p}'
+            )
 
 # --- Tabs ---
 tabs = st.tabs(['Upload & Forecast','Project Summary'])
