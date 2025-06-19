@@ -94,12 +94,12 @@ with st.sidebar:
         )
 
 # --- Tabs ---
-tabs = st.tabs(['Dashboard','Project Summary'])
+tabs = st.tabs(['Upload & Forecast','Project Summary'])
 
 # --- Upload & Forecast Tab ---
 with tabs[0]:
-    st.title('Keyword SEO FCST Tool')
-    uploaded = st.file_uploader('SEO FCST Tool', type=['csv','xlsx'])
+    st.title('Upload & Forecast')
+    uploaded = st.file_uploader('Upload CSV or Excel', type=['csv','xlsx'])
     if not uploaded:
         st.info('Please upload a CSV or Excel file to start forecasting.')
         st.stop()
@@ -224,7 +224,7 @@ with tabs[1]:
         st.info('Run forecast first.')
     else:
         st.data_editor(
-            st.session_state.launch_month_df,
+            st.session_state.launch_month_df.reset_index(drop=True),
             column_config={'Launch Date':st.column_config.DateColumn('Launch Date')},
             use_container_width=True,
             hide_index=True,
