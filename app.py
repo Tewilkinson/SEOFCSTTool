@@ -88,41 +88,44 @@ with tabs[0]:
     for scenario in ["High","Medium","Low"]:
         for _, r in filtered.iterrows():
             project, msv, pos = r['Project'], r['MSV'], r['Current Position']
-            has_aio = str(r['AI Overview']).lower() == 'yes'
-            has_fs = str(r['Featured Snippet']).lower() == 'yes'
+            has_aio = str(r['AI Overview']).lower()== 'yes'
+            has_fs = str(r['Featured Snippet']).lower()== 'yes'
             launch = launch_map.get(project, base)
             cur_pos = pos
             for m in range(1,25):
                 date = base + DateOffset(months=m-1)
                 clicks = 0
                 if date >= launch:
-                    if m > 1:
+                    if m>1:
                         cur_pos = max(1, cur_pos - get_movement(msv))
                     pi = int(round(cur_pos))
                     base_ctr = get_ctr_for_position(pi)
-                    if scenario == "High":
+                    if scenario=="High":
                         ctr = base_ctr
-                    elif scenario == "Medium":
-                        ctr = base_ctr * (1 - 0.05 * st.session_state.paid_listings.get(project,0))
-                        if pi == 1 and has_aio: ctr = aio_ctr
-                        if pi == 1 and has_fs: ctr = fs_ctr
+                    elif scenario=="Medium":
+                        ctr = base_ctr*(1-0.05*st.session_state.paid_listings.get(project,0))
+                        if pi==1 and has_aio: ctr = aio_ctr
+                        if pi==1 and has_fs: ctr = fs_ctr
                     else:
-                        ctr = base_ctr * 0.8 * (1 - 0.05 * st.session_state.paid_listings.get(project,0))
-                        if pi == 1 and has_aio: ctr = aio_ctr * 0.8
-                        if pi == 1 and has_fs: ctr = fs_ctr * 0.8
+                        ctr = base_ctr*0.8*(1-0.05*st.session_state.paid_listings.get(project,0))
+                        if pi==1 and has_aio: ctr = aio_ctr*0.8
+                        if pi==1 and has_fs: ctr = fs_ctr*0.8
                     adj = st.session_state.seasonality_df.loc[
-                        st.session_state.seasonality_df['Month'] == date.strftime('%B'), 'Adjustment (%)'
+                        st.session_state.seasonality_df['Month']==date.strftime('%B'),'Adjustment (%)'
                     ].iloc[0]
-                    clicks = (ctr / 100) * msv * (1 + adj / 100)
-                rec.append({"Scenario": scenario, "Date": date, "Clicks": round(clicks)})
+                    clicks = (ctr/100)*msv*(1+adj/100)
+                rec.append({"Scenario":scenario,"Date":date,"Clicks":round(clicks)})
     plot_df = pd.DataFrame(rec).groupby(["Scenario","Date"])['Clicks'].sum().reset_index()
 
-    # KPI Date Pickers
+    # KPI Date Pickers Side-by-Side
     st.subheader("Forecast KPIs")
+    col_start, col_end = st.columns(2)
     min_date = plot_df['Date'].min().date()
     max_date = plot_df['Date'].max().date()
-    start_date = st.date_input("Start Date for KPIs", min_value=min_date, max_value=max_date, value=min_date)
-    end_date = st.date_input("End Date for KPIs", min_value=min_date, max_value=max_date, value=max_date)
+    with col_start:
+        start_date = st.date_input("Start Date", min_value=min_date, max_value=max_date, value=min_date)
+    with col_end:
+        end_date = st.date_input("End Date", min_value=min_date, max_value=max_date, value=max_date)
     if end_date < start_date:
         st.error("End date must be on or after start date.")
     else:
@@ -140,7 +143,7 @@ with tabs[0]:
         fig.update_xaxes(tickformat='%b %Y')
         st.plotly_chart(fig, use_container_width=True)
 
-                # Forecast summary table by scenario and month
+        # Forecast summary table by scenario and month
         summary = chart_df.copy()
         summary['Month'] = summary['Date'].dt.strftime('%b %Y')
         summary['Month_dt'] = summary['Date']
@@ -150,7 +153,6 @@ with tabs[0]:
             values='Clicks',
             aggfunc='sum'
         ).reset_index()
-        # Sort by actual date and drop helper column
         summary_pivot = summary_pivot.sort_values('Month_dt').drop(columns='Month_dt')
         summary_pivot.columns.name = None
         st.subheader("Forecast Summary by Scenario")
@@ -179,7 +181,8 @@ with tabs[1]:
                     has_fs = str(r['Featured Snippet']).lower() == 'yes'
                     cur = pos
                     for i in range(1, m+1):
-                        if i>1: cur = max(1, cur - get_movement(msv))
+                        if i>1:
+                            cur = max(1, cur - get_movement(msv))
                     pi = int(round(cur))
                     base_ctr = get_ctr_for_position(pi)
                     ctr = base_ctr * (1 - 0.05 * st.session_state.paid_listings.get(project,0))
@@ -189,7 +192,7 @@ with tabs[1]:
                     adj = st.session_state.seasonality_df.loc[
                         st.session_state.seasonality_df['Month'] == adj_month, 'Adjustment (%)'
                     ].iloc[0]
-                    tot += (ctr/100) * msv * (1 + adj/100)
+                    tot += (ctr/100) * msv * (1 + adj / 100)
                 row[f"{m}-Month Clicks"] = round(tot)
             rows.append(row)
         summary_df = pd.DataFrame(rows)
