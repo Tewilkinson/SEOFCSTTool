@@ -43,7 +43,7 @@ if "df" not in st.session_state:
 if "launch_month_df" not in st.session_state:
     st.session_state.launch_month_df = pd.DataFrame(columns=["Project","Launch Date"])
 
-# --- Helpers ---
+# --- Helper Functions ---
 def get_movement(msv):
     if msv <= 500: return 1.5
     if msv <= 2000: return 1.0
@@ -72,8 +72,8 @@ with st.sidebar:
         use_container_width=True,
         key="season_editor"
     )
-    fs_ctr = st.number_input("Featured Snippet CTR (%)", 0.0, 100.0, 18.0)
-    aio_ctr = st.number_input("AI Overview CTR (%)", 0.0, 100.0, 12.0)
+    fs_ctr = st.number_input("Featured Snippet CTR (%)", min_value=0.0, max_value=100.0, value=18.0)
+    aio_ctr = st.number_input("AI Overview CTR (%)", min_value=0.0, max_value=100.0, value=12.0)
     st.subheader("Avg. Paid Listings per Project")
     for p in st.session_state.launch_month_df['Project'] if not st.session_state.launch_month_df.empty else []:
         st.session_state.paid_listings[p] = st.slider(
@@ -132,9 +132,7 @@ with tabs[0]:
                         ctr = base_ctr*0.8*(1-0.05*st.session_state.paid_listings.get(proj,0))
                         if pi==1 and has_aio: ctr = aio_ctr*0.8
                         if pi==1 and has_fs: ctr = fs_ctr*0.8
-                    adj = st.session_state.seasonality_df.loc[
-                        st.session_state.seasonality_df['Month']==date.strftime('%B'),'Adjustment (%)'
-                    ].iloc[0]
+                    adj = st.session_state.seasonality_df.loc[st.session_state.seasonality_df['Month']==date.strftime('%B'),'Adjustment (%)'].iloc[0]
                     clicks = (ctr/100)*msv*(1+adj/100)
                 rec.append({"Scenario":scenario,"Project":proj,"URL":url,"Keyword":kw,"Date":date,"Clicks":round(clicks)})
     rec_df = pd.DataFrame(rec)
@@ -161,38 +159,36 @@ with tabs[0]:
         # Line Chart
         fig = px.line(plot_df[mask], x='Date', y='Clicks', color='Scenario', markers=True)
         fig.update_layout(title="Projected Traffic Scenarios Over Time")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig,use_container_width=True)
 
         # Summary Table
         summ = plot_df[mask].copy()
         summ['Month'] = summ['Date'].dt.strftime('%b %Y')
         summ['SortKey'] = summ['Date']
-        pivot = summ.pivot_table(index=['Month','SortKey'], columns='Scenario', values='Clicks', aggfunc='sum').reset_index()
+        pivot = summ.pivot_table(index=['Month','SortKey'],columns='Scenario',values='Clicks',aggfunc='sum').reset_index()
         pivot = pivot.sort_values('SortKey').drop(columns='SortKey')
-        pivot.columns.name = None
+        pivot.columns.name=None
         st.subheader("Forecast Summary by Scenario")
-        st.dataframe(pivot, use_container_width=True)
+        st.dataframe(pivot,use_container_width=True)
 
         # Combo Chart
-        rec_mask = (
-            (rec_df['Scenario']=='Medium') &
-            (rec_df['Date'].dt.date >= start_date) &
-            (rec_df['Date'].dt.date <= end_date)
-        )
+        rec_mask = ((rec_df['Scenario']=='Medium') & 
+                    (rec_df['Date'].dt.date >= start_date) & 
+                    (rec_df['Date'].dt.date <= end_date))
         med_df = rec_df[rec_mask].groupby('Project')['Clicks'].sum().reset_index()
         kc = filtered.groupby('Project')['Keyword'].count().reset_index(name='Keyword Count')
-        combo = kc.merge(med_df, on='Project', how='left').fillna(0)
+        combo = kc.merge(med_df,on='Project',how='left').fillna(0)
         fig2 = go.Figure()
         if not combo.empty:
-            fig2.add_bar(x=combo['Project'], y=combo['Clicks'], name='Medium Clicks')
-            fig2.add_scatter(x=combo['Project'], y=combo['Keyword Count'], mode='lines+markers', name='Keyword Count', yaxis='y2')
+            fig2.add_bar(x=combo['Project'],y=combo['Clicks'],name='Medium Clicks')
+            fig2.add_scatter(x=combo['Project'],y=combo['Keyword Count'],mode='lines+markers',name='Keyword Count',yaxis='y2')
             fig2.update_layout(
                 title="Medium Clicks vs Keyword Count by Project",
                 yaxis=dict(title='Medium Clicks'),
-                yaxis2=dict(overlaying='y', side='right', title='Keyword Count'),
-                legend=dict(x=0.7, y=1.1)
+                yaxis2=dict(overlaying='y',side='right',title='Keyword Count'),
+                legend=dict(x=0.7,y=1.1)
             )
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2,use_container_width=True)
 
         # Actions Summary
         m3 = base + DateOffset(months=2)
@@ -200,20 +196,18 @@ with tabs[0]:
         action_df = rec_df[rec_df['Scenario']=='Medium']
         a3 = action_df[action_df['Date']==m3].groupby(['Project','URL'])['Clicks'].sum().reset_index(name='3-Month Clicks')
         a6 = action_df[action_df['Date']==m6].groupby(['Project','URL'])['Clicks'].sum().reset_index(name='6-Month Clicks')
-        actions = a3.merge(a6, on=['Project','URL'], how='outer').fillna(0)
+        actions = a3.merge(a6,on=['Project','URL'],how='outer').fillna(0)
         # Weighted Avg Rank
-        rank_df = filtered.assign(URL=filtered['Current URL'].fillna('')).
-            groupby(['Project','URL']).apply(
-                lambda d: (d['Current Position']*d['MSV']).sum()/d['MSV'].sum()
-            ).reset_index(name='Weighted Avg Rank')
-        actions = actions.merge(rank_df, on=['Project','URL'], how='left')
+        rank_df = (filtered.assign(URL=filtered['Current URL'].fillna(''))
+                   .groupby(['Project','URL'])
+                   .apply(lambda d: (d['Current Position']*d['MSV']).sum()/d['MSV'].sum())
+                   .reset_index(name='Weighted Avg Rank'))
+        actions = actions.merge(rank_df,on=['Project','URL'],how='left')
         # Action Type
         actions['Action'] = actions.apply(
-            lambda r: 'Create New Page' if (r['Weighted Avg Rank']>100 or not r['URL']) else 'Optimisation',
-            axis=1
-        )
+            lambda r: 'Create New Page' if (r['Weighted Avg Rank']>100 or not r['URL']) else 'Optimisation',axis=1)
         st.subheader("Optimisation Actions Summary")
-        st.dataframe(actions[['Project','Action','URL','Weighted Avg Rank','3-Month Clicks','6-Month Clicks']], use_container_width=True)
+        st.dataframe(actions[['Project','Action','URL','Weighted Avg Rank','3-Month Clicks','6-Month Clicks']],use_container_width=True)
 
 # --- Project Summary ---
 with tabs[1]:
@@ -221,9 +215,6 @@ with tabs[1]:
     if st.session_state.df.empty:
         st.info("Run forecast first.")
     else:
-        st.data_editor(
-            st.session_state.launch_month_df,
-            column_config={ 'Launch Date': st.column_config.DateColumn('Launch Date') },
-            use_container_width=True,
-            key='proj_summary'
-        )
+        st.data_editor(st.session_state.launch_month_df,
+                       column_config={'Launch Date':st.column_config.DateColumn('Launch Date')},
+                       use_container_width=True,key='proj_summary')
