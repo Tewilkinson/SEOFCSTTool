@@ -131,10 +131,9 @@ with tabs[0]:
                     ].iloc[0]
                     clicks = (ctr/100)*msv*(1+adj/100)
                 rec.append({"Scenario":scenario,"Date":date,"Clicks":round(clicks)})
-    ]
     # Keep original rec records for project-level aggregation
     rec_df = pd.DataFrame(rec)
-    plot_df = rec_df.groupby(["Scenario","Date"])['Clicks'].sum().reset_index()(["Scenario","Date"])['Clicks'].sum().reset_index()
+    plot_df = rec_df.groupby(["Scenario","Date"])['Clicks'].sum().reset_index()
 
     # KPI Date Pickers Side-by-Side
     st.subheader("Forecast KPIs")
