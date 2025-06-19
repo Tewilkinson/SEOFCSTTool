@@ -65,10 +65,22 @@ with st.sidebar:
         st.session_state.ctr_df,
         column_config={'CTR': st.column_config.NumberColumn('CTR (%)', min_value=0.0, max_value=100.0)},
         use_container_width=True,
+        hide_index=True,
+        key='ctr_editor'
+    )
+        st.session_state.ctr_df,
+        column_config={'CTR': st.column_config.NumberColumn('CTR (%)', min_value=0.0, max_value=100.0)},
+        use_container_width=True,
         key='ctr_editor'
     )
     st.subheader('Seasonality by Month')
     st.session_state.seasonality_df = st.data_editor(
+        st.session_state.seasonality_df,
+        column_config={'Adjustment (%)': st.column_config.NumberColumn('Adjustment (%)', min_value=-100.0, max_value=100.0)},
+        use_container_width=True,
+        hide_index=True,
+        key='season_editor'
+    )
         st.session_state.seasonality_df,
         column_config={'Adjustment (%)': st.column_config.NumberColumn('Adjustment (%)', min_value=-100.0, max_value=100.0)},
         use_container_width=True,
@@ -212,4 +224,10 @@ with tabs[1]:
     if st.session_state.df.empty:
         st.info('Run forecast first.')
     else:
-        st.data_editor(st.session_state.launch_month_df, column_config={'Launch Date':st.column_config.DateColumn('Launch Date')}, use_container_width=True, key='proj_summary')
+        st.data_editor(
+            st.session_state.launch_month_df,
+            column_config={'Launch Date':st.column_config.DateColumn('Launch Date')},
+            use_container_width=True,
+            hide_index=True,
+            key='proj_summary'
+        )
