@@ -6,23 +6,6 @@ from pandas import DateOffset
 
 # --- App Config ---
 st.set_page_config(page_title="SEO Forecast Tool", layout="wide")
-# Fix sidebar width to prevent main view cutoff
-st.markdown(
-    """
-    <style>
-    [data-testid="stSidebar"] {
-        width: 300px;
-    }
-    [data-testid="stSidebar"][aria-expanded="true"] {
-        width: 300px;
-    }
-    [data-testid="stAppViewContainer"] {
-        margin-left: 300px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 
 # --- Initialize session state ---
 for key, df in {
@@ -50,7 +33,7 @@ def get_movement(msv):
 
 def get_ctr_for_position(pos):
     ctrs = st.session_state.ctr_df
-    return float(ctrs.loc[ctrs['Position']==pos,'CTR'].iloc[0]) if pos in list(ctrs['Position']) else float(ctrs['CTR'].iloc[-1])
+    return float(ctrs.loc[ctrs['Position']==pos,'CTR'].iloc[0]) if pos in ctrs['Position'].tolist() else float(ctrs['CTR'].iloc[-1])
 
 # --- Sidebar Controls ---
 with st.sidebar:
@@ -76,71 +59,135 @@ with st.sidebar:
         for p in st.session_state.launch_month_df['Project']:
             st.session_state.paid_listings[p] = st.slider(f"{p} Paid Listings", 0, 10, 2, key=f"paid_{p}")
 
-# --- Tabs ---
-tabs = st.tabs(["Upload & Forecast","Project Summary"])
+# --- Tabs Layout ---
+tabs = st.tabs(["Upload & Forecast", "Project Summary"])
 
+# --- Upload & Forecast Tab ---
 with tabs[0]:
     st.title("SEO Forecast Tool")
-    st.download_button("Download Template CSV", data=pd.DataFrame({
-        "Project":["Example"],"Keyword":["shoes for men"],"MSV":[12100],"Current Position":[8],
-        "AI Overview":["Yes"],"Featured Snippet":["No"],"Current URL":["https://example.com"]
-    }).to_csv(index=False).encode(), file_name="template.csv")
+    # Download template
+    st.download_button(
+        "Download Template CSV",
+        data=pd.DataFrame({
+            "Project":["Example"],
+            "Keyword":["shoes for men"],
+            "MSV":[12100],
+            "Current Position":[8],
+            "AI Overview":["Yes"],
+            "Featured Snippet":["No"],
+            "Current URL":["https://example.com"]
+        }).to_csv(index=False).encode('utf-8'),
+        file_name="template.csv"
+    )
 
+    # Upload and display input
     uploaded = st.file_uploader("Upload CSV/XLSX", type=["csv","xlsx"])
     if uploaded:
-        st.session_state.df = pd.read_csv(uploaded) if uploaded.name.endswith('.csv') else pd.read_excel(uploaded)
-        projs = st.session_state.df['Project'].dropna().unique().tolist()
-        # sync launch dates
+        df = pd.read_csv(uploaded) if uploaded.name.endswith('.csv') else pd.read_excel(uploaded)
+        st.session_state.df = df.copy()
+        projs = df['Project'].dropna().unique().tolist()
+        # initialize launch dates if projects changed
         if set(projs) != set(st.session_state.launch_month_df['Project']):
-            st.session_state.launch_month_df = pd.DataFrame({"Project":projs,
-                "Launch Date":[datetime.today().replace(day=1)]*len(projs)
+            st.session_state.launch_month_df = pd.DataFrame({
+                "Project": projs,
+                "Launch Date": [datetime.today().replace(day=1)]*len(projs)
             })
-        sel = st.selectbox("Project", ["All"]+projs)
-        filt = st.session_state.df if sel=="All" else st.session_state.df[st.session_state.df['Project']==sel]
-        st.dataframe(filt, use_container_width=True)
-        # generate chart
-        rec=[]; base=datetime.today().replace(day=1)
-        lm=st.session_state.launch_month_df.set_index('Project')['Launch Date'].to_dict()
-        for _,r in filt.iterrows():
-            for m in range(1,25):
-                dt=base+DateOffset(months=m-1); lbl=dt.strftime('%b %Y')
-                if dt<lm.get(r['Project'],base): c=0
+        selected = st.selectbox("Select Project", ["All"]+projs)
+        filtered = df if selected == "All" else df[df['Project']==selected]
+        st.subheader("Keyword Inputs")
+        st.dataframe(filtered, use_container_width=True)
+
+        # compute and display chart
+        rec = []
+        base = datetime.today().replace(day=1)
+        launch_map = st.session_state.launch_month_df.set_index('Project')['Launch Date'].to_dict()
+        for _, r in filtered.iterrows():
+            project = r['Project']
+            msv = r['MSV']
+            cur_pos = r['Current Position']
+            has_aio = str(r['AI Overview']).strip().lower() == 'yes'
+            has_fs = str(r['Featured Snippet']).strip().lower() == 'yes'
+            launch = launch_map.get(project, base)
+            pos = cur_pos
+            for m in range(1, 25):
+                date = base + DateOffset(months=m-1)
+                label = date.strftime('%b %Y')
+                if date < launch:
+                    clicks = 0
                 else:
-                    if m>1: rpos=max(1,r['Current Position']-get_movement(r['MSV']))
-                    p=int(round(rpos));
-                    ctr = aio_ctr if p==1 and str(r['AI Overview']).lower()=='yes' else fs_ctr if p==1 and str(r['Featured Snippet']).lower()=='yes' else get_ctr_for_position(p)
-                    ctr*=1-0.05*st.session_state.paid_listings.get(r['Project'],0)
-                    adj=st.session_state.seasonality_df.loc[st.session_state.seasonality_df['Month']==dt.strftime('%B'),'Adjustment (%)'].iloc[0]
-                    c=(ctr/100)*r['MSV']*(1+adj/100)
-                rec.append({'Month':lbl,'Clicks':round(c)})
-        sdf=pd.DataFrame(rec).groupby('Month',sort=False).sum().reset_index()
-        sdf['Date']=pd.to_datetime(sdf['Month'],format='%b %Y')
-        fig=px.line(sdf.sort_values('Date'), x='Date', y='Clicks', markers=True)
+                    if m > 1:
+                        pos = max(1, pos - get_movement(msv))
+                    pi = int(round(pos))
+                    if pi == 1 and has_aio:
+                        ctr = aio_ctr
+                    elif pi == 1 and has_fs:
+                        ctr = fs_ctr
+                    else:
+                        ctr = get_ctr_for_position(pi)
+                    avg_paid = st.session_state.paid_listings.get(project, 0)
+                    ctr = max(0, ctr * (1 - 0.05 * avg_paid))
+                    adj = st.session_state.seasonality_df.loc[
+                        st.session_state.seasonality_df['Month'] == date.strftime('%B'),
+                        'Adjustment (%)'
+                    ].iloc[0]
+                    clicks = (ctr/100) * msv * (1 + adj/100)
+                rec.append({"Month": label, "Clicks": round(clicks)})
+        summary = pd.DataFrame(rec).groupby('Month', sort=False).sum().reset_index()
+        summary['Date'] = pd.to_datetime(summary['Month'], format='%b %Y')
+
+        st.subheader("Projected Traffic Over Time")
+        fig = px.line(summary.sort_values('Date'), x='Date', y='Clicks', markers=True)
         fig.update_xaxes(tickformat='%b %Y')
         st.plotly_chart(fig, use_container_width=True)
 
+        st.subheader("Forecast Summary Table")
+        st.dataframe(summary[['Month','Clicks']], use_container_width=True)
+
+# --- Project Summary Tab ---
 with tabs[1]:
     st.header("Project Launch & Forecast Summary")
     if st.session_state.df.empty:
-        st.info("Run forecast first in tab 1.")
+        st.info("Run forecast first in the Upload & Forecast tab.")
     else:
-        rows=[]
-        lm=st.session_state.launch_month_df.set_index('Project')['Launch Date']
-        for p in lm.index:
-            ld=pd.to_datetime(lm.loc[p])
-            d={'Project':p,'Launch Date':ld.strftime('%b %Y')}
-            sub=st.session_state.df[st.session_state.df['Project']==p]
+        # build summary rows
+        rows = []
+        launch_map = st.session_state.launch_month_df.set_index('Project')['Launch Date']
+        for project, launch_dt in launch_map.iteritems():
+            launch_date = pd.to_datetime(launch_dt)
+            row = {"Project": project, "Launch Date": launch_date.strftime('%b %Y')}
+            subset = st.session_state.df[st.session_state.df['Project']==project]
             for m in [3,6,9,12]:
-                tot=0
-                for _,r in sub.iterrows():
-                    pos=r['Current Position']; msv=r['MSV']; aio=str(r['AI Overview']).lower()=='yes'; fs=str(r['Featured Snippet']).lower()=='yes'
-                    for i in range(1,m+1): pos=max(1,pos-get_movement(msv)) if i>1 else pos
-                    pi=int(round(pos))
-                    ctr = aio_ctr if pi==1 and aio else fs_ctr if pi==1 and fs else get_ctr_for_position(pi)
-                    ctr*=1-0.05*st.session_state.paid_listings.get(p,0)
-                    adj=st.session_state.seasonality_df.loc[st.session_state.seasonality_df['Month']==(ld+DateOffset(months=m-1)).strftime('%B'),'Adjustment (%)'].iloc[0]
-                    tot+=(ctr/100)*msv*(1+adj/100)
-                d[f"{m}-Month Clicks"]=round(tot)
-            rows.append(d)
-        summary=pd.DataFrame(rows)
-        st.data_editor(summary, use_container_width=True, key='final_summary')
+                total_clicks = 0
+                for _, r in subset.iterrows():
+                    pos = r['Current Position']
+                    msv = r['MSV']
+                    has_aio = str(r['AI Overview']).strip().lower() == 'yes'
+                    has_fs = str(r['Featured Snippet']).strip().lower() == 'yes'
+                    p = pos
+                    for _ in range(1, m+1):
+                        if _ > 1:
+                            p = max(1, p - get_movement(msv))
+                    pi = int(round(p))
+                    if pi == 1 and has_aio:
+                        ctr = aio_ctr
+                    elif pi == 1 and has_fs:
+                        ctr = fs_ctr
+                    else:
+                        ctr = get_ctr_for_position(pi)
+                    avg_paid = st.session_state.paid_listings.get(project, 0)
+                    ctr = max(0, ctr * (1 - 0.05 * avg_paid))
+                    adj_month = (launch_date + DateOffset(months=m-1)).strftime('%B')
+                    seasonal_adj = st.session_state.seasonality_df.loc[
+                        st.session_state.seasonality_df['Month'] == adj_month,
+                        'Adjustment (%)'
+                    ].iloc[0]
+                    total_clicks += (ctr/100) * msv * (1 + seasonal_adj/100)
+                row[f"{m}-Month Clicks"] = round(total_clicks)
+            rows.append(row)
+        summary_df = pd.DataFrame(rows)
+        st.data_editor(
+            summary_df,
+            column_config={'Launch Date': st.column_config.DateColumn('Launch Date')},
+            use_container_width=True,
+            key='final_summary'
+        )
