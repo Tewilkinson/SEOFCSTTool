@@ -138,8 +138,13 @@ with tabs[0]:
     min_date = plot_df['Date'].min().date()
     max_date = plot_df['Date'].max().date()
     with c_start:
-        start_date = st.date_input("Start Date", min_date, max_date, min_value=min_date, max_value=max_date)
+        start_date = st.date_input(
+            "Start Date", value=min_date, min_value=min_date, max_value=max_date
+        )
     with c_end:
+        end_date = st.date_input(
+            "End Date", value=max_date, min_value=min_date, max_value=max_date
+        )
         end_date = st.date_input("End Date", min_date, max_date, min_value=min_date, max_value=max_date)
     if end_date < start_date:
         st.error("End date must be on or after start date.")
