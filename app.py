@@ -138,6 +138,8 @@ with tabs[0]:
                     clicks = (ctr/100) * msv * (1 + adj/100)
                 rec.append({"Scenario": scenario, "Project": proj, "URL": url, "Keyword": kw, "Date": date, "Clicks": round(clicks)})
     rec_df = pd.DataFrame(rec)
+    # Ensure blank URLs are captured as empty strings, not NaN
+    rec_df['URL'] = rec_df['URL'].fillna('')
     plot_df = rec_df.groupby(["Scenario","Date"])['Clicks'].sum().reset_index()
 
     # KPI pickers
@@ -183,8 +185,10 @@ with tabs[0]:
         )
         med_df = rec_df[rec_mask].groupby('Project')['Clicks'].sum().reset_index()
         kc = filtered.groupby('Project')['Keyword'].count().reset_index(name='Keyword Count')
-        combo = med_df.merge(kc, on='Project', how='left').fillna(0)
+        # Align keyword counts with all projects
+        combo = kc[['Project','Keyword Count']].merge(med_df, on='Project', how='left').fillna(0)
         fig2 = go.Figure()
+        if not combo.empty:
         fig2.add_bar(x=combo['Project'], y=combo['Clicks'], name='Medium Clicks')
         fig2.add_scatter(x=combo['Project'], y=combo['Keyword Count'], mode='lines+markers', name='Keyword Count', yaxis='y2')
         fig2.update_layout(
@@ -204,7 +208,11 @@ with tabs[0]:
         a6 = action_df[action_df['Date']==m6].groupby(['Project','URL'])['Clicks'].sum().reset_index(name='6-Month Clicks')
         actions = a3.merge(a6, on=['Project','URL'], how='outer').fillna(0)
                 # Calculate weighted average current rank per URL
-        rank_df = filtered.assign(URL=filtered['Current URL']).groupby(['Project','URL']).apply(
+        # Compute weighted avg rank, treating missing URLs as empty
+        rank_df = filtered.assign(URL=filtered['Current URL'].fillna(''))\
+                        .groupby(['Project','URL'])\
+                        .apply(lambda d: (d['Current Position']*d['MSV']).sum()/d['MSV'].sum())\
+                        .reset_index(name='Weighted Avg Rank')(['Project','URL']).apply(
             lambda d: (d['Current Position']*d['MSV']).sum()/d['MSV'].sum()
         ).reset_index(name='Weighted Avg Rank')
         actions = actions.merge(rank_df, on=['Project','URL'], how='left')
