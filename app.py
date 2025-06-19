@@ -88,13 +88,13 @@ with st.sidebar:
         'Featured Snippet CTR (%)',
         min_value=0.0,
         max_value=100.0,
-        value=11.0
+        value=18.0
     )
     aio_ctr = st.number_input(
         'AI Overview CTR (%)',
         min_value=0.0,
         max_value=100.0,
-        value=5.0
+        value=12.0
     )
 
     # Paid listings selector
@@ -114,11 +114,11 @@ with st.sidebar:
         )
 
 # --- Tabs ---
-tabs = st.tabs(['Upload & Forecast','Project Summary'])
+tabs = st.tabs(['Dashboard','Project Summary'])
 
 # --- Upload & Forecast Tab ---
 with tabs[0]:
-    st.title('Upload & Forecast')
+    st.title('Dashboard')
     uploaded = st.file_uploader('Upload CSV or Excel', type=['csv','xlsx'])
     if not uploaded:
         st.info('Please upload a CSV or Excel file to start forecasting.')
