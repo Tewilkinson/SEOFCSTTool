@@ -1,11 +1,25 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime, date
 from pandas import DateOffset
 
 # --- App Config ---
 st.set_page_config(page_title="SEO Forecast Tool", layout="wide", initial_sidebar_state="expanded")
+
+# --- Template Generator ---
+def create_template():
+    data = {
+        "Project": ["Example Project"],
+        "Keyword": ["shoes for men"],
+        "MSV": [12100],
+        "Current Position": [8],
+        "AI Overview": ["Yes"],
+        "Featured Snippet": ["No"],
+        "Current URL": ["https://example.com/shoes-for-men"]
+    }
+    return pd.DataFrame(data).to_csv(index=False).encode("utf-8")
 
 # --- Initialize session state ---
 if "ctr_df" not in st.session_state:
@@ -35,6 +49,8 @@ def get_ctr_for_position(pos):
 
 # --- Sidebar Controls ---
 with st.sidebar:
+    st.subheader("Download Template")
+    st.download_button("Download Template CSV", data=create_template(), file_name="forecast_template.csv")
     st.header("CTR & Seasonality")
     st.subheader("CTR by Position")
     st.session_state.ctr_df = st.data_editor(
@@ -88,8 +104,8 @@ with tabs[0]:
     for scenario in ["High","Medium","Low"]:
         for _, r in filtered.iterrows():
             project, msv, pos = r['Project'], r['MSV'], r['Current Position']
-            has_aio = str(r['AI Overview']).lower()== 'yes'
-            has_fs = str(r['Featured Snippet']).lower()== 'yes'
+            has_aio = str(r['AI Overview']).lower()=='yes'
+            has_fs = str(r['Featured Snippet']).lower()=='yes'
             launch = launch_map.get(project, base)
             cur_pos = pos
             for m in range(1,25):
@@ -158,6 +174,19 @@ with tabs[0]:
         st.subheader("Forecast Summary by Scenario")
         st.dataframe(summary_pivot, use_container_width=True)
 
+        # Combo bar+line: Medium clicks by project + keyword count
+        st.subheader("Project Comparison (Medium vs. Keyword Count)")
+        project_clicks = chart_df[chart_df['Scenario']=='Medium'].groupby('Project')['Clicks'].sum().reset_index()
+        keyword_counts = filtered.groupby('Project')['Keyword'].count().reset_index(name='Keyword Count')
+        combo_df = pd.merge(project_clicks, keyword_counts, on='Project')
+        fig2 = px.bar(combo_df, x='Project', y='Clicks', labels={'Clicks':'Medium Clicks'})
+        fig2.add_scatter(x=combo_df['Project'], y=combo_df['Keyword Count'], mode='lines+markers', name='Keyword Count', yaxis='y2')
+        fig2.update_layout(
+            yaxis2=dict(overlaying='y', side='right', title='Keyword Count'),
+            legend=dict(x=0.7, y=1.1)
+        )
+        st.plotly_chart(fig2, use_container_width=True)
+
     # Keyword inputs
     st.subheader("Keyword Inputs")
     st.dataframe(filtered, use_container_width=True)
@@ -181,8 +210,7 @@ with tabs[1]:
                     has_fs = str(r['Featured Snippet']).lower() == 'yes'
                     cur = pos
                     for i in range(1, m+1):
-                        if i>1:
-                            cur = max(1, cur - get_movement(msv))
+                        if i>1: cur = max(1, cur - get_movement(msv))
                     pi = int(round(cur))
                     base_ctr = get_ctr_for_position(pi)
                     ctr = base_ctr * (1 - 0.05 * st.session_state.paid_listings.get(project,0))
@@ -192,7 +220,7 @@ with tabs[1]:
                     adj = st.session_state.seasonality_df.loc[
                         st.session_state.seasonality_df['Month'] == adj_month, 'Adjustment (%)'
                     ].iloc[0]
-                    tot += (ctr/100) * msv * (1 + adj / 100)
+                    tot += (ctr/100) * msv * (1 + adj/100)
                 row[f"{m}-Month Clicks"] = round(tot)
             rows.append(row)
         summary_df = pd.DataFrame(rows)
