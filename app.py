@@ -186,7 +186,7 @@ with tabs[0]:
         # Sum clicks over first 3 months and first 6 months for each URL
         a3 = action_df[action_df['Date'] <= m3].groupby(['Project','URL'])['Raw Clicks'].sum().reset_index(name='3-Month Clicks')
         a6 = action_df[action_df['Date'] <= m6].groupby(['Project','URL'])['Raw Clicks'].sum().reset_index(name='6-Month Clicks')
-        actions = a3.merge(a6, on=['Project','URL'], how='outer').fillna(0)(a6, on=['Project','URL'], how='outer').fillna(0)
+        actions = a3.merge(a6, on=['Project','URL'], how='outer').fillna(0)
         rank_df = filtered.assign(URL=filtered['Current URL'].fillna('') )\
                  .groupby(['Project','URL'])\
                  .apply(lambda d: (d['Current Position']*d['MSV']).sum()/d['MSV'].sum())\
