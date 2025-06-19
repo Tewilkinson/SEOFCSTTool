@@ -173,10 +173,14 @@ with tabs[0]:
         st.dataframe(pivot, use_container_width=True)
 
         # Combo chart: Medium clicks vs keyword count
-        st.subheader("Project Comparison")
-        medium = rec_df[(rec_df['Scenario']=='Medium') & mask].groupby('Project')['Clicks'].sum().reset_index()
-        counts = filtered.groupby('Project')['Keyword'].count().reset_index(name='Keyword Count')
-        combo = medium.merge(counts, on='Project', how='left').fillna(0)
+        # Aggregate medium scenario within selected date range
+        medium = rec_df[
+            (rec_df['Scenario']=='Medium') &
+            (rec_df['Date'].dt.date >= start_date) &
+            (rec_df['Date'].dt.date <= end_date)
+        ].groupby('Project')['Clicks'].sum().reset_index()
+        keyword_counts = filtered.groupby('Project')['Keyword'].count().reset_index(name='Keyword Count')
+        combo = medium.merge(keyword_counts, on='Project', how='left').fillna(0)
         fig2 = go.Figure()
         fig2.add_bar(x=combo['Project'], y=combo['Clicks'], name='Medium Clicks')
         fig2.add_trace(go.Scatter(x=combo['Project'], y=combo['Keyword Count'], mode='lines+markers', name='Keyword Count', yaxis='y2'))
