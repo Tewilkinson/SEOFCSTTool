@@ -182,19 +182,29 @@ with tabs[0]:
         # Actions Summary
         m3 = base + DateOffset(months=2)
         m6 = base + DateOffset(months=5)
-        action_df = rec_df[rec_df['Scenario']=='Medium']
-        # Sum clicks over first 3 months and first 6 months for each URL
-        a3 = action_df[action_df['Date'] <= m3].groupby(['Project','URL'])['Raw Clicks'].sum().reset_index(name='3-Month Clicks')
-        a6 = action_df[action_df['Date'] <= m6].groupby(['Project','URL'])['Raw Clicks'].sum().reset_index(name='6-Month Clicks')
-        actions = a3.merge(a6, on=['Project','URL'], how='outer').fillna(0)
-        rank_df = filtered.assign(URL=filtered['Current URL'].fillna('') )\
-                 .groupby(['Project','URL'])\
-                 .apply(lambda d: (d['Current Position']*d['MSV']).sum()/d['MSV'].sum())\
-                 .reset_index(name='Weighted Avg Rank')
-        actions = actions.merge(rank_df, on=['Project','URL'], how='left')
-        actions['Action'] = actions.apply(lambda r: 'Create New Page' if (r['Weighted Avg Rank']>100 or not r['URL']) else 'Optimisation', axis=1)
+        records = []
+        # Unique projects
+        for proj in filtered['Project'].unique():
+            # Existing URL actions
+            existing_urls = filtered[filtered['Project']==proj]['Current URL'].dropna().unique()
+            for url in existing_urls:
+                # 3-month and 6-month clicks
+                clicks3 = rec_df[(rec_df['Scenario']=='Medium') & (rec_df['Project']==proj) & (rec_df['URL']==url) & (rec_df['Date']<=m3)]['Raw Clicks'].sum()
+                clicks6 = rec_df[(rec_df['Scenario']=='Medium') & (rec_df['Project']==proj) & (rec_df['URL']==url) & (rec_df['Date']<=m6)]['Raw Clicks'].sum()
+                # Weighted avg rank
+                wr = filtered[(filtered['Project']==proj) & (filtered['Current URL']==url)]
+                weighted = (wr['Current Position'] * wr['MSV']).sum() / wr['MSV'].sum() if not wr.empty else None
+                records.append({'Project':proj,'Action':'Optimisation','URL':url,'Weighted Avg Rank':round(weighted,2) if weighted else None,'3-Month Clicks':int(clicks3),'6-Month Clicks':int(clicks6)})
+            # New page actions per keyword without URL
+            blank_rows = filtered[(filtered['Project']==proj) & (filtered['Current URL'].isna()| (filtered['Current URL']==''))]
+            for _, br in blank_rows.iterrows():
+                kw = br['Keyword']
+                clicks3 = rec_df[(rec_df['Scenario']=='Medium') & (rec_df['Project']==proj) & (rec_df['URL']=='') & (rec_df['Keyword']==kw) & (rec_df['Date']<=m3)]['Raw Clicks'].sum()
+                clicks6 = rec_df[(rec_df['Scenario']=='Medium') & (rec_df['Project']==proj) & (rec_df['URL']=='') & (rec_df['Keyword']==kw) & (rec_df['Date']<=m6)]['Raw Clicks'].sum()
+                records.append({'Project':proj,'Action':'Create New Page','URL':'','Weighted Avg Rank':None,'3-Month Clicks':int(clicks3),'6-Month Clicks':int(clicks6)})
+        actions_df = pd.DataFrame(records)
         st.subheader('Optimisation Actions Summary')
-        st.dataframe(actions[['Project','Action','URL','Weighted Avg Rank','3-Month Clicks','6-Month Clicks']], use_container_width=True)
+        st.dataframe(actions_df[['Project','Action','URL','Weighted Avg Rank','3-Month Clicks','6-Month Clicks']], use_container_width=True),'URL','Weighted Avg Rank','3-Month Clicks','6-Month Clicks']], use_container_width=True)
 
 # --- Project Summary Tab ---
 with tabs[1]:
