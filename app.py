@@ -158,12 +158,13 @@ with tabs[0]:
         m2.metric("Medium Forecast", totals.get("Medium", 0))
         m3.metric("Low Forecast", totals.get("Low", 0))
 
-        # Line chart
+                # Line chart
         fig = px.line(plot_df[mask], x='Date', y='Clicks', color='Scenario', markers=True)
         fig.update_layout(title="Projected Traffic Scenarios Over Time")
         st.plotly_chart(fig, use_container_width=True)
 
         # Summary table
+
         summ = plot_df[mask].copy()
         summ['Month'] = summ['Date'].dt.strftime('%b %Y')
         summ['SortKey'] = summ['Date']
@@ -173,14 +174,16 @@ with tabs[0]:
         st.subheader("Forecast Summary by Scenario")
         st.dataframe(pivot, use_container_width=True)
 
-                # Combo chart: Medium clicks vs keyword count
-        # Recompute medium clicks filtered by date range on rec_df
-        med_df = rec_df[(rec_df['Scenario']=='Medium') &
-                        (rec_df['Date'].dt.date >= start_date) &
-                        (rec_df['Date'].dt.date <= end_date)]
-        med = med_df.groupby('Project')['Clicks'].sum().reset_index()
+                        # Combo chart: Medium clicks vs keyword count
+        # Recompute medium clicks filtered by date range
+        rec_mask = (
+            (rec_df['Scenario']=='Medium') &
+            (rec_df['Date'].dt.date >= start_date) &
+            (rec_df['Date'].dt.date <= end_date)
+        )
+        med_df = rec_df[rec_mask].groupby('Project')['Clicks'].sum().reset_index()
         kc = filtered.groupby('Project')['Keyword'].count().reset_index(name='Keyword Count')
-        combo = med.merge(kc, on='Project', how='left').fillna(0)
+        combo = med_df.merge(kc, on='Project', how='left').fillna(0)
         fig2 = go.Figure()
         fig2.add_bar(x=combo['Project'], y=combo['Clicks'], name='Medium Clicks')
         fig2.add_scatter(x=combo['Project'], y=combo['Keyword Count'], mode='lines+markers', name='Keyword Count', yaxis='y2')
