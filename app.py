@@ -115,14 +115,16 @@ with tabs[0]:
                     rec.append({"Scenario": scenario, "Date": date, "Clicks": round(clicks)})
         plot_df = pd.DataFrame(rec).groupby(["Scenario","Date"])['Clicks'].sum().reset_index()
 
-        # KPIs and Date Range Selector
+                # KPIs and Date Range Selector
         st.subheader("Forecast KPIs")
-        min_date = plot_df['Date'].min()
-        max_date = plot_df['Date'].max()
+        # Convert pandas.Timestamp to Python datetime for slider compatibility
+        min_date = plot_df['Date'].min().to_pydatetime()
+        max_date = plot_df['Date'].max().to_pydatetime()
         start_date, end_date = st.slider(
-            "Select Date Range for KPIs", min_date, max_date, (min_date, max_date), format="%b %Y"
+            "Select Date Range for KPIs", min_value=min_date, max_value=max_date,
+            value=(min_date, max_date), format="%b %Y"
         )
-        kpi_df = plot_df[(plot_df['Date'] >= start_date) & (plot_df['Date'] <= end_date)]
+        kpi_df = plot_df[(plot_df['Date'] >= pd.to_datetime(start_date)) & (plot_df['Date'] <= pd.to_datetime(end_date))]
         kpis = kpi_df.groupby('Scenario')['Clicks'].sum().to_dict()
         col1, col2, col3 = st.columns(3)
         col1.metric("High Forecast", kpis.get("High", 0))
