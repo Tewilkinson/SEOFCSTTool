@@ -196,21 +196,26 @@ with tabs[0]:
         m3 = base + DateOffset(months=2)
         m6 = base + DateOffset(months=5)
         action_df = rec_df[rec_df['Scenario']=='Medium']
+        # Aggregate 3- and 6-month clicks per URL
         a3 = action_df[action_df['Date']==m3].groupby(['Project','URL'])['Clicks'].sum().reset_index(name='3-Month Clicks')
         a6 = action_df[action_df['Date']==m6].groupby(['Project','URL'])['Clicks'].sum().reset_index(name='6-Month Clicks')
         actions = a3.merge(a6, on=['Project','URL'], how='outer').fillna(0)
-        rank_df = filtered.groupby(['Project','Current URL']).apply(lambda d: (d['Current Position']*d['MSV']).sum()/d['MSV'].sum()).reset_index(name='Weighted Avg Rank')
-        actions = actions.merge(rank_df, left_on=['Project','URL'], right_on=['Project','Current URL'], how='left').drop(columns='Current URL')
-                # Determine action type: optimisation if URL exists, else create new page
+        # Calculate weighted average current rank per URL
+        rank_df = filtered.groupby(['Project','URL']).apply(
+            lambda d: (d['Current Position']*d['MSV']).sum()/d['MSV'].sum()
+        ).reset_index(name='Weighted Avg Rank')
+        actions = actions.merge(rank_df, on=['Project','URL'], how='left')
+        # Determine action type
         actions['Action'] = actions.apply(
             lambda r: 'Create New Page' if (r['Weighted Avg Rank']>100 or not r['URL']) else 'Optimisation',
             axis=1
         )
-        actions['Recommended URL'] = actions.apply(lambda r: f"https://example.com/{slugify(r['Project'])}/{slugify(r['URL'] or r['Project'] + ' ' + r['Action'])}" if r['Action']=='Net New Page' else r['URL'], axis=1)
+        # Display actions summary without recommended URL
         st.subheader("Optimisation Actions Summary")
-        st.dataframe(actions[['Project','Action','URL','Recommended URL','Weighted Avg Rank','3-Month Clicks','6-Month Clicks']], use_container_width=True)
-
-# --- Project Summary Tab ---
+        st.dataframe(
+            actions[['Project','Action','URL','Weighted Avg Rank','3-Month Clicks','6-Month Clicks']],
+            use_container_width=True
+        )# --- Project Summary Tab ---
 with tabs[1]:
     st.header("Project Launch & Forecast Summary")
     if st.session_state.df.empty:
