@@ -155,11 +155,10 @@ with tabs[0]:
         c2.metric("Medium Forecast", kpi_vals.get("Medium", 0))
         c3.metric("Low Forecast", kpi_vals.get("Low", 0))
 
-        # Filtered line chart
-        st.subheader("Projected Traffic Scenarios Over Time")
-        chart_df = plot_df[mask]
-        fig = px.line(chart_df, x='Date', y='Clicks', color='Scenario', markers=True)
-        fig.update_xaxes(tickformat='%b %Y')
+            # Filtered line chart
+        fig.update_layout(
+            title="Projected Traffic Scenarios Over Time"
+        )
         st.plotly_chart(fig, use_container_width=True)
 
         # Forecast summary table by scenario and month
@@ -188,8 +187,12 @@ with tabs[0]:
         fig2 = go.Figure()
         fig2.add_trace(go.Bar(x=combo_df['Project'], y=combo_df['Clicks'], name='Medium Clicks'))
         fig2.add_trace(go.Scatter(x=combo_df['Project'], y=combo_df['Keyword Count'], mode='lines+markers', name='Keyword Count', yaxis='y2'))
-        fig2.update_layout(
+                fig2.update_layout(
+            title="Medium Clicks vs Keyword Count by Project",
             yaxis=dict(title='Medium Clicks'),
+            yaxis2=dict(overlaying='y', side='right', title='Keyword Count'),
+            legend=dict(x=0.7, y=1.1)
+        ),
             yaxis2=dict(overlaying='y', side='right', title='Keyword Count'),
             legend=dict(x=0.7, y=1.1)
         )
