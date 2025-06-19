@@ -80,14 +80,18 @@ with st.sidebar:
     aio_ctr = st.number_input('AI Overview CTR (%)', min_value=0.0, max_value=100.0, value=12.0)
     st.subheader('Avg. Paid Listings per Project')
     if not st.session_state.launch_month_df.empty:
-        for p in st.session_state.launch_month_df['Project']:
-            st.session_state.paid_listings[p] = st.slider(
-                f'{p} Paid Listings',
-                min_value=0,
-                max_value=10,
-                value=st.session_state.paid_listings.get(p, 2),
-                key=f'paid_{p}'
-            )
+        project_list = st.selectbox(
+            'Select Project for Paid Listings',
+            options=st.session_state.launch_month_df['Project'].tolist(),
+            key='paid_project_selector'
+        )
+        st.session_state.paid_listings[project_list] = st.slider(
+            f"{project_list} Paid Listings",
+            min_value=0,
+            max_value=10,
+            value=st.session_state.paid_listings.get(project_list, 2),
+            key=f"paid_{project_list}"
+        )
 
 # --- Tabs ---
 tabs = st.tabs(['Upload & Forecast','Project Summary'])
