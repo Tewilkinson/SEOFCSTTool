@@ -75,9 +75,7 @@ with st.sidebar:
         use_container_width=True,
         hide_index=True,
         key='season_editor'
-    )
-        fs_ctr = st.number_input('Featured Snippet CTR (%)', min_value=0.0, max_value=100.0, value=18.0)
-    aio_ctr = st.number_input('AI Overview CTR (%)', min_value=0.0, max_value=100.0, value=12.0)
+    )    fs_ctr = st.number_input('Featured Snippet CTR (%)', min_value=0.0, max_value=100.0, value=18.0)('Featured Snippet CTR (%)', min_value=0.0, max_value=100.0, value=18.0)    aio_ctr = st.number_input('AI Overview CTR (%)', min_value=0.0, max_value=100.0, value=12.0)('AI Overview CTR (%)', min_value=0.0, max_value=100.0, value=12.0)
     st.subheader('Avg. Paid Listings per Project')
     if not st.session_state.launch_month_df.empty:
         project = st.selectbox(
