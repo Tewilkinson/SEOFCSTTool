@@ -180,15 +180,29 @@ with tabs[0]:
         )
         st.plotly_chart(fig2, use_container_width=True)
 
-        # Optimisation actions summary
+        # Optimisation actions summary with action type and weighted average rank
         month3_date = base + DateOffset(months=2)
         month6_date = base + DateOffset(months=5)
         actions = rec_df[rec_df['Scenario']=='Medium']
-        actions3 = actions[actions['Date']==month3_date].groupby(['Project','URL'])['Clicks'].sum().reset_index(name='3-Month Clicks')
-        actions6 = actions[actions['Date']==month6_date].groupby(['Project','URL'])['Clicks'].sum().reset_index(name='6-Month Clicks')
+        # 3-month and 6-month clicks
+        actions3 = actions[actions['Date']==month3_date].groupby(['Project','URL'])['Clicks']
+            .sum().reset_index(name='3-Month Clicks')
+        actions6 = actions[actions['Date']==month6_date].groupby(['Project','URL'])['Clicks']
+            .sum().reset_index(name='6-Month Clicks')
         actions_summary = pd.merge(actions3, actions6, on=['Project','URL'], how='outer').fillna(0)
-        actions_summary['Action'] = 'Optimisation'
-        cols = ['Project','Action','URL','3-Month Clicks','6-Month Clicks']
+        # Weighted average current rank per URL
+        rank_df = filtered.groupby(['Project','Current URL']).apply(
+            lambda d: (d['Current Position'] * d['MSV']).sum() / d['MSV'].sum()
+        ).reset_index(name='Weighted Avg Rank')
+        actions_summary = actions_summary.merge(
+            rank_df, left_on=['Project','URL'], right_on=['Project','Current URL'], how='left'
+        ).drop(columns='Current URL')
+        # Action type: optimisation if URL exists, else net new page
+        actions_summary['Action'] = actions_summary['URL'].apply(
+            lambda u: 'Optimisation' if pd.notna(u) and u != '' else 'Net New Page'
+        )
+        # Reorder and display
+        cols = ['Project','Action','URL','Weighted Avg Rank','3-Month Clicks','6-Month Clicks']
         st.subheader("Optimisation Actions Summary")
         st.dataframe(actions_summary[cols], use_container_width=True)
 
