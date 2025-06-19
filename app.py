@@ -165,7 +165,7 @@ with tabs[0]:
         summ = plot_df[mask].copy(); summ['Month']=summ['Date'].dt.strftime('%b %Y'); summ['SortKey']=summ['Date']
         pivot = summ.pivot_table(index=['Month','SortKey'], columns='Scenario', values='Clicks', aggfunc='sum').reset_index()
         pivot = pivot.sort_values('SortKey').drop(columns='SortKey'); pivot.columns.name=None
-        st.subheader('Forecast Summary by Scenario'); st.dataframe(pivot.style.hide_index(), use_container_width=True)
+        st.subheader('Forecast Summary by Scenario'); st.dataframe(pivot, use_container_width=True, hide_index=True)
 
         # Combo chart
         rec_mask = (rec_df['Scenario']=='Medium') & (rec_df['Date'].dt.date>=start_date) & (rec_df['Date'].dt.date<=end_date)
@@ -204,7 +204,7 @@ with tabs[0]:
                 records.append({'Project':proj,'Action':'Create New Page','URL':'','Weighted Avg Rank':None,'3-Month Clicks':int(clicks3),'6-Month Clicks':int(clicks6)})
         actions_df = pd.DataFrame(records)
         st.subheader('Optimisation Actions Summary')
-        st.dataframe(actions_df[['Project','Action','URL','Weighted Avg Rank','3-Month Clicks','6-Month Clicks']].style.hide_index(), use_container_width=True)
+        st.dataframe(actions_df[['Project','Action','URL','Weighted Avg Rank','3-Month Clicks','6-Month Clicks']], use_container_width=True, hide_index=True)
 
 # --- Project Summary Tab ---
 with tabs[1]:
