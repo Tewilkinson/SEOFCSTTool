@@ -88,10 +88,7 @@ with tabs[0]:
     st.session_state.df = df.copy()
     projs = df['Project'].dropna().unique().tolist()
     if set(projs) != set(st.session_state.launch_month_df['Project']):
-        st.session_state.launch_month_df = pd.DataFrame({
-            "Project": projs,
-            "Launch Date": [datetime.today().replace(day=1)] * len(projs)
-        })
+        st.session_state.launch_month_df = pd.DataFrame({"Project": projs, "Launch Date": [datetime.today().replace(day=1)] * len(projs)})
         st.session_state.paid_listings = {p:2 for p in projs}
     sel = st.selectbox("Select Project", ["All"] + projs)
     filtered = df if sel=="All" else df[df['Project']==sel]
@@ -102,7 +99,7 @@ with tabs[0]:
     rec = []
     for scenario in ["High","Medium","Low"]:
         for _, r in filtered.iterrows():
-            project,msv,pos = r['Project'],r['MSV'],r['Current Position']
+            project,msv,pos,url = r['Project'], r['MSV'], r['Current Position'], r['Current URL']
             has_aio = str(r['AI Overview']).lower()=='yes'
             has_fs = str(r['Featured Snippet']).lower()=='yes'
             launch = launch_map.get(project,base)
@@ -128,7 +125,7 @@ with tabs[0]:
                         st.session_state.seasonality_df['Month']==date.strftime('%B'),'Adjustment (%)'
                     ].iloc[0]
                     clicks = (ctr/100)*msv*(1+adj/100)
-                rec.append({"Scenario":scenario,"Project":project,"Date":date,"Clicks":round(clicks)})
+                rec.append({"Scenario":scenario,"Project":project,"URL":url,"Date":date,"Clicks":round(clicks)})
     rec_df = pd.DataFrame(rec)
     plot_df = rec_df.groupby(["Scenario","Date"])['Clicks'].sum().reset_index()
 
@@ -138,13 +135,9 @@ with tabs[0]:
     min_date = plot_df['Date'].min().date()
     max_date = plot_df['Date'].max().date()
     with c_start:
-        start_date = st.date_input(
-            "Start Date", value=min_date, min_value=min_date, max_value=max_date
-        )
+        start_date = st.date_input("Start Date", value=min_date, min_value=min_date, max_value=max_date)
     with c_end:
-        end_date = st.date_input(
-            "End Date", value=max_date, min_value=min_date, max_value=max_date
-        )
+        end_date = st.date_input("End Date", value=max_date, min_value=min_date, max_value=max_date)
     if end_date < start_date:
         st.error("End date must be on or after start date.")
     else:
@@ -173,17 +166,12 @@ with tabs[0]:
         st.dataframe(pivot, use_container_width=True)
 
         # Combo chart: Medium clicks vs keyword count
-        # Aggregate medium scenario within selected date range
-        medium = rec_df[
-            (rec_df['Scenario']=='Medium') &
-            (rec_df['Date'].dt.date >= start_date) &
-            (rec_df['Date'].dt.date <= end_date)
-        ].groupby('Project')['Clicks'].sum().reset_index()
+        medium = rec_df[(rec_df['Scenario']=='Medium') & mask].groupby('Project')['Clicks'].sum().reset_index()
         keyword_counts = filtered.groupby('Project')['Keyword'].count().reset_index(name='Keyword Count')
         combo = medium.merge(keyword_counts, on='Project', how='left').fillna(0)
         fig2 = go.Figure()
         fig2.add_bar(x=combo['Project'], y=combo['Clicks'], name='Medium Clicks')
-        fig2.add_trace(go.Scatter(x=combo['Project'], y=combo['Keyword Count'], mode='lines+markers', name='Keyword Count', yaxis='y2'))
+        fig2.add_scatter(x=combo['Project'], y=combo['Keyword Count'], mode='lines+markers', name='Keyword Count', yaxis='y2')
         fig2.update_layout(
             title="Medium Clicks vs Keyword Count by Project",
             yaxis=dict(title='Medium Clicks'),
@@ -192,9 +180,17 @@ with tabs[0]:
         )
         st.plotly_chart(fig2, use_container_width=True)
 
-    # Keyword inputs
-    st.subheader("Keyword Inputs")
-    st.dataframe(filtered, use_container_width=True)
+        # Optimisation actions summary
+        month3_date = base + DateOffset(months=2)
+        month6_date = base + DateOffset(months=5)
+        actions = rec_df[rec_df['Scenario']=='Medium']
+        actions3 = actions[actions['Date']==month3_date].groupby(['Project','URL'])['Clicks'].sum().reset_index(name='3-Month Clicks')
+        actions6 = actions[actions['Date']==month6_date].groupby(['Project','URL'])['Clicks'].sum().reset_index(name='6-Month Clicks')
+        actions_summary = pd.merge(actions3, actions6, on=['Project','URL'], how='outer').fillna(0)
+        actions_summary['Action'] = 'Optimisation'
+        cols = ['Project','Action','URL','3-Month Clicks','6-Month Clicks']
+        st.subheader("Optimisation Actions Summary")
+        st.dataframe(actions_summary[cols], use_container_width=True)
 
 # --- Project Summary Tab ---
 with tabs[1]:
@@ -208,10 +204,10 @@ with tabs[1]:
             row = {'Project':proj,'Launch Date':ldt}
             subset = st.session_state.df[st.session_state.df['Project']==proj]
             for m in [3,6,9,12]:
-                total=0
-                for _,r in subset.iterrows():
+                tot = 0
+                for _, r in subset.iterrows():
                     # same calc as above
                     pass
-                row[f"{m}-Month Clicks"] = total
+                row[f"{m}-Month Clicks"] = tot
             rows.append(row)
         st.data_editor(pd.DataFrame(rows), column_config={'Launch Date':st.column_config.DateColumn('Launch Date')}, use_container_width=True, key='proj_summary')
