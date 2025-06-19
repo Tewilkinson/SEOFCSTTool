@@ -77,8 +77,8 @@ with st.sidebar:
         key='season_editor'
     )
     fs_ctr = st.number_input('Featured Snippet CTR (%)', min_value=0.0, max_value=100.0, value=18.0)
-    aio_ctr = st.number_input('AI Overview CTR (%)', min_value=0.0, max_value=100.0, value=12.0)
-        st.subheader('Avg. Paid Listings per Project')
+        aio_ctr = st.number_input('AI Overview CTR (%)', min_value=0.0, max_value=100.0, value=12.0)
+    st.subheader('Avg. Paid Listings per Project')
     if not st.session_state.launch_month_df.empty:
         project = st.selectbox(
             'Select Project for Paid Listings',
@@ -86,11 +86,11 @@ with st.sidebar:
             key='paid_project_selector'
         )
         st.session_state.paid_listings[project] = st.slider(
-            f"{project} Paid Listings",
+            f'{project} Paid Listings',
             min_value=0,
             max_value=10,
             value=st.session_state.paid_listings.get(project, 2),
-            key=f"paid_{project}"
+            key=f'paid_{project}'
         )
 
 # --- Tabs ---
