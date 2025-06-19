@@ -185,10 +185,8 @@ with tabs[0]:
         month6_date = base + DateOffset(months=5)
         actions = rec_df[rec_df['Scenario']=='Medium']
         # 3-month and 6-month clicks
-        actions3 = actions[actions['Date']==month3_date].groupby(['Project','URL'])['Clicks']
-            .sum().reset_index(name='3-Month Clicks')
-        actions6 = actions[actions['Date']==month6_date].groupby(['Project','URL'])['Clicks']
-            .sum().reset_index(name='6-Month Clicks')
+        actions3 = actions[actions['Date']==month3_date].groupby(['Project','URL'])['Clicks'].sum().reset_index(name='3-Month Clicks')
+        actions6 = actions[actions['Date']==month6_date].groupby(['Project','URL'])['Clicks'].sum().reset_index(name='6-Month Clicks')
         actions_summary = pd.merge(actions3, actions6, on=['Project','URL'], how='outer').fillna(0)
         # Weighted average current rank per URL
         rank_df = filtered.groupby(['Project','Current URL']).apply(
