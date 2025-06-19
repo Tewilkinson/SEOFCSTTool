@@ -118,7 +118,7 @@ tabs = st.tabs(['Dashboard','Project Summary'])
 
 # --- Upload & Forecast Tab ---
 with tabs[0]:
-    st.title('Dashboard')
+    st.title('SEO Keyword FCSTin Tool.')
     uploaded = st.file_uploader('Upload CSV or Excel', type=['csv','xlsx'])
     if not uploaded:
         st.info('Please upload a CSV or Excel file to start forecasting.')
