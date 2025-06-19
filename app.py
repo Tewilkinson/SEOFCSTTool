@@ -204,7 +204,7 @@ with tabs[0]:
                 records.append({'Project':proj,'Action':'Create New Page','URL':'','Weighted Avg Rank':None,'3-Month Clicks':int(clicks3),'6-Month Clicks':int(clicks6)})
         actions_df = pd.DataFrame(records)
         st.subheader('Optimisation Actions Summary')
-        st.dataframe(actions_df[['Project','Action','URL','Weighted Avg Rank','3-Month Clicks','6-Month Clicks']], use_container_width=True),'URL','Weighted Avg Rank','3-Month Clicks','6-Month Clicks']], use_container_width=True)
+        st.dataframe(actions_df[['Project','Action','URL','Weighted Avg Rank','3-Month Clicks','6-Month Clicks']], use_container_width=True)
 
 # --- Project Summary Tab ---
 with tabs[1]:
