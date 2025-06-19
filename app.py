@@ -60,22 +60,44 @@ def get_ctr_for_position(pos):
 with st.sidebar:
     st.subheader('Download Template')
     st.download_button('Download Template CSV', data=create_template(), file_name='forecast_template.csv')
+
     st.subheader('CTR by Position')
     st.session_state.ctr_df = st.data_editor(
         st.session_state.ctr_df,
-        column_config={'CTR': st.column_config.NumberColumn('CTR (%)', min_value=0.0, max_value=100.0)},
+        column_config={
+            'CTR': st.column_config.NumberColumn('CTR (%)', min_value=0.0, max_value=100.0)
+        },
         use_container_width=True,
         hide_index=True,
         key='ctr_editor'
     )
+
     st.subheader('Seasonality by Month')
     st.session_state.seasonality_df = st.data_editor(
         st.session_state.seasonality_df,
-        column_config={'Adjustment (%)': st.column_config.NumberColumn('Adjustment (%)', min_value=-100.0, max_value=100.0)},
+        column_config={
+            'Adjustment (%)': st.column_config.NumberColumn('Adjustment (%)', min_value=-100.0, max_value=100.0)
+        },
         use_container_width=True,
         hide_index=True,
         key='season_editor'
-    )    fs_ctr = st.number_input('Featured Snippet CTR (%)', min_value=0.0, max_value=100.0, value=18.0)('Featured Snippet CTR (%)', min_value=0.0, max_value=100.0, value=18.0)    aio_ctr = st.number_input('AI Overview CTR (%)', min_value=0.0, max_value=100.0, value=12.0)('AI Overview CTR (%)', min_value=0.0, max_value=100.0, value=12.0)
+    )
+
+    # CTR overrides
+    fs_ctr = st.number_input(
+        'Featured Snippet CTR (%)',
+        min_value=0.0,
+        max_value=100.0,
+        value=18.0
+    )
+    aio_ctr = st.number_input(
+        'AI Overview CTR (%)',
+        min_value=0.0,
+        max_value=100.0,
+        value=12.0
+    )
+
+    # Paid listings selector
     st.subheader('Avg. Paid Listings per Project')
     if not st.session_state.launch_month_df.empty:
         project = st.selectbox(
