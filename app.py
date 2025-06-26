@@ -37,7 +37,7 @@ if 'ctr_df' not in st.session_state:
 if 'seasonality_df' not in st.session_state:
     st.session_state.seasonality_df = pd.DataFrame({
         'Month': ['January','February','March','April','May','June','July','August','September','October','November','December'],
-        'Adjustment (%)': [8,2,-1,10,12,-8,-10,-15,10,12,10,-8]
+        'Adjustment (%)': [0,0,0,0,0,-20,0,0,0,0,0,0]
     })
 if 'paid_listings' not in st.session_state:
     st.session_state.paid_listings = {}
@@ -62,9 +62,8 @@ def get_ctr_for_position(pos):
     max_pos = df['Position'].max()
     if pos <= max_pos:
         return float(df.loc[df['Position'] == pos, 'CTR'].iloc[0])
-    # linear interpolation down to zero CTR at Position 200
-    last_ctr = float(df['CTR'].iloc[-1])
-    return last_ctr * max(0, (200 - pos) / (200 - max_pos))
+    # positions beyond your table get zero clicks until they drift into 1–10
+    return 0.0
 
 # --- Sidebar ---
 with st.sidebar:
@@ -94,18 +93,8 @@ with st.sidebar:
     )
 
     # CTR overrides
-    fs_ctr = st.number_input(
-        'Featured Snippet CTR (%)',
-        min_value=0.0,
-        max_value=100.0,
-        value=18.0
-    )
-    aio_ctr = st.number_input(
-        'AI Overview CTR (%)',
-        min_value=0.0,
-        max_value=100.0,
-        value=12.0
-    )
+    fs_ctr = st.number_input('Featured Snippet CTR (%)', min_value=0.0, max_value=100.0, value=18.0)
+    aio_ctr = st.number_input('AI Overview CTR (%)', min_value=0.0, max_value=100.0, value=12.0)
 
     # Paid listings selector
     st.subheader('Avg. Paid Listings per Project')
@@ -168,24 +157,26 @@ with tabs[0]:
                     if i > 1:
                         cur_pos = max(1, cur_pos - get_movement(msv))
                     pi = int(round(cur_pos))
-                    base_ctr = get_ctr_for_position(pi)
-                    # scenario CTR
-                    if scenario == 'High':
-                        ctr = base_ctr
-                    elif scenario == 'Medium':
-                        ctr = base_ctr * (1 - 0.05 * st.session_state.paid_listings.get(proj, 0))
-                        if pi == 1 and has_aio: ctr = aio_ctr
-                        if pi == 1 and has_fs: ctr = fs_ctr
-                    else:
-                        ctr = base_ctr * 0.8 * (1 - 0.05 * st.session_state.paid_listings.get(proj, 0))
-                        if pi == 1 and has_aio: ctr = aio_ctr * 0.8
-                        if pi == 1 and has_fs: ctr = fs_ctr * 0.8
-                    adj = st.session_state.seasonality_df.loc[
-                        st.session_state.seasonality_df['Month'] == date.strftime('%B'),
-                        'Adjustment (%)'
-                    ].iloc[0]
-                    raw_clicks = (ctr / 100) * msv
-                    adjusted_clicks = raw_clicks * (1 + adj / 100)
+                    # only compute if in 1–10
+                    if pi <= st.session_state.ctr_df['Position'].max():
+                        base_ctr = get_ctr_for_position(pi)
+                        # scenario CTR
+                        if scenario == 'High':
+                            ctr = base_ctr
+                        elif scenario == 'Medium':
+                            ctr = base_ctr * (1 - 0.05 * st.session_state.paid_listings.get(proj, 0))
+                            if pi == 1 and has_aio: ctr = aio_ctr
+                            if pi == 1 and has_fs: ctr = fs_ctr
+                        else:
+                            ctr = base_ctr * 0.8 * (1 - 0.05 * st.session_state.paid_listings.get(proj, 0))
+                            if pi == 1 and has_aio: ctr = aio_ctr * 0.8
+                            if pi == 1 and has_fs: ctr = fs_ctr * 0.8
+                        adj = st.session_state.seasonality_df.loc[
+                            st.session_state.seasonality_df['Month'] == date.strftime('%B'),
+                            'Adjustment (%)'
+                        ].iloc[0]
+                        raw_clicks = (ctr / 100) * msv
+                        adjusted_clicks = raw_clicks * (1 + adj / 100)
                 rec.append({
                     'Scenario': scenario,
                     'Project': proj,
