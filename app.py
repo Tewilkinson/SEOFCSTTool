@@ -37,7 +37,7 @@ if 'ctr_df' not in st.session_state:
 if 'seasonality_df' not in st.session_state:
     st.session_state.seasonality_df = pd.DataFrame({
         'Month': ['January','February','March','April','May','June','July','August','September','October','November','December'],
-        'Adjustment (%)': [0,0,0,0,0,-20,0,0,0,0,0,0]
+        'Adjustment (%)': [8,2,-1,10,12,-8,-10,-15,10,12,10,-8]
     })
 if 'paid_listings' not in st.session_state:
     st.session_state.paid_listings = {}
