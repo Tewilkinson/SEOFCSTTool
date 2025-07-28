@@ -59,6 +59,7 @@ def get_movement(msv):
         return 0.75
     return 1.0
 
+
 def get_ctr_for_position(pos):
     df = st.session_state.ctr_df
     max_pos = df["Position"].max()
@@ -125,9 +126,18 @@ if tab_selection == "Dashboard":
 
     base       = datetime.today().replace(day=1)
     launch_map = st.session_state.launch_month_df.set_index("Project")["Launch Date"].to_dict()
+    
+    # define scenario speed multipliers
+    scenario_speed_map = {
+        "High":   1.5,
+        "Medium": 1.0,
+        "Low":    0.5
+    }
+
     rec = []
 
     for scenario in ["High","Medium","Low"]:
+        scen_mul = scenario_speed_map[scenario]
         for _, r in filtered.iterrows():
             proj, msv, pos = r["Project"], r["MSV"], r["Current Position"]
             url = r.get("Current URL","") or ""
@@ -142,15 +152,16 @@ if tab_selection == "Dashboard":
                 raw_clicks = adjusted_clicks = 0
 
                 if date >= launch:
-                    # Month 1 snap: >15→15
                     if i == 1 and cur_pos > 15:
                         cur_pos = 15
                     elif i > 1:
                         # determine phase multiplier
-                        if   cur_pos > 15: phase_mul = 3.0   # fast
-                        elif cur_pos >  6: phase_mul = 1.0   # medium
-                        else:               phase_mul = 0.5  # hard
-                        drift = get_movement(msv) * speed_factor * phase_mul
+                        if   cur_pos > 15: phase_mul = 3.0   # fast phase
+                        elif cur_pos >  6: phase_mul = 1.0   # medium phase
+                        else:               phase_mul = 0.5  # hard phase
+                        
+                        # incorporate scenario speed
+                        drift = get_movement(msv) * speed_factor * phase_mul * scen_mul
                         cur_pos = max(1, cur_pos - drift)
 
                     pi = int(round(cur_pos))
@@ -190,7 +201,7 @@ if tab_selection == "Dashboard":
     st.session_state.rec_df = rec_df  # Store rec_df in session state for later use
 
     plot_df = (rec_df
-               .groupby(["Scenario","Date"])["Adjusted Clicks"]
+               .groupby(["Scenario","Date"])['Adjusted Clicks']
                .sum().reset_index().rename(columns={"Adjusted Clicks":"Clicks"}))
 
     # --- KPI Pickers & Charts ---
@@ -228,19 +239,11 @@ if tab_selection == "Dashboard":
 if tab_selection == "Keyword Rank Tables":
     st.title("Keyword Rank Tables")
     
-    # Retrieve the stored rec_df from session state
     rec_df = st.session_state.rec_df
-
-    # Convert date to simplified format (Jul-2025)
     rec_df['Month-Year'] = rec_df['Date'].dt.strftime('%b-%Y')
 
-    # Dropdown to select scenario
     scenario_selected = st.selectbox("Select Scenario", rec_df['Scenario'].unique())
-
-    # Filter data based on selected scenario
     filtered_rank_table = rec_df[rec_df['Scenario'] == scenario_selected]
-
-    # Pivot table with simplified date format
     rank_table = filtered_rank_table.pivot_table(index=["Project", "Keyword"], columns="Month-Year", values="Position", aggfunc="mean")
     st.subheader("Keyword Rank Progression")
     st.dataframe(rank_table, use_container_width=True)
