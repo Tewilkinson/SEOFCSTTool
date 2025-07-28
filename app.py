@@ -92,37 +92,29 @@ if tab_selection == "Dashboard":
     if "uploaded_file" not in st.session_state:
         st.info("Please upload a CSV or Excel file to start forecasting.")
         st.stop()
-
-    # load data once
     if st.session_state.df.empty:
         file = st.session_state.uploaded_file
         df = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
         df["MSV"] = pd.to_numeric(df.get("MSV",0), errors="coerce").fillna(0)
         df["Current Position"] = pd.to_numeric(df.get("Current Position",0), errors="coerce").fillna(0)
         st.session_state.df = df.copy()
-
     df = st.session_state.df
     projects = df["Project"].dropna().unique().tolist()
     if set(projects) != set(st.session_state.launch_month_df["Project"]):
         st.session_state.launch_month_df = pd.DataFrame({"Project": projects, "Launch Date": [datetime.today().replace(day=1)] * len(projects)})
         st.session_state.paid_listings = {p:2 for p in projects}
-
     selected = st.selectbox("Select Project", ["All"] + projects)
     filtered = df if selected=="All" else df[df["Project"]==selected]
-
     base = datetime.today().replace(day=1)
     launch_map = st.session_state.launch_month_df.set_index("Project")["Launch Date"].to_dict()
     scenario_speed_map = {"High":1.5, "Medium":1.0, "Low":0.5}
-
-    # build forecast once
     if st.session_state.rec_df.empty:
         rec = []
         for scenario in ["High","Medium","Low"]:
             scen_mul = scenario_speed_map[scenario]
             for _, r in filtered.iterrows():
                 proj, msv, pos = r["Project"], r["MSV"], r["Current Position"]
-                url = r.get("Current URL", "") or ""
-                kw = r["Keyword"]
+                url, kw = r.get("Current URL",""), r["Keyword"]
                 has_aio = str(r["AI Overview"]).lower()=="yes"
                 has_fs  = str(r["Featured Snippet"]).lower()=="yes"
                 launch  = launch_map.get(proj, base)
@@ -131,12 +123,9 @@ if tab_selection == "Dashboard":
                     date = base + DateOffset(months=i-1)
                     raw_clicks = adjusted_clicks = 0
                     if date >= launch:
-                        if i == 1 and cur_pos > 15:
-                            cur_pos = 15
+                        if i == 1 and cur_pos > 15: cur_pos = 15
                         elif i > 1:
-                            if cur_pos > 15: phase_mul=3.0
-                            elif cur_pos > 6: phase_mul=1.0
-                            else: phase_mul=0.5
+                            phase_mul = 3.0 if cur_pos>15 else 1.0 if cur_pos>6 else 0.5
                             drift = get_movement(msv)*speed_factor*phase_mul*scen_mul
                             cur_pos = max(1, cur_pos-drift)
                         pi = int(round(cur_pos))
@@ -155,26 +144,11 @@ if tab_selection == "Dashboard":
                                 st.session_state.seasonality_df["Month"]==date.strftime("%B"),
                                 "Adjustment (%)"
                             ].iloc[0]
-                            raw_clicks=(ctr/100)*msv
-                            adjusted_clicks=raw_clicks*(1+adj/100)
-                    rec.append({
-                        "Scenario": scenario,
-                        "Project":   proj,
-                        "URL":       url,
-                        "Keyword":   kw,
-                        "Date":      date,
-                        "Raw Clicks":      round(raw_clicks),
-                        "Adjusted Clicks": round(adjusted_clicks),
-                        "Position":  cur_pos
-                    })
+                            raw_clicks = (ctr/100)*msv
+                            adjusted_clicks = raw_clicks*(1+adj/100)
+                    rec.append({"Scenario":scenario, "Project":proj, "Date":date, "Adjusted Clicks":adjusted_clicks})
         st.session_state.rec_df = pd.DataFrame(rec)
-
-    # prepare plot data
-    plot_df = (st.session_state.rec_df
-               .groupby(["Scenario","Date"])["Adjusted Clicks"]
-               .sum().reset_index())
-
-    # --- KPI Pickers & Charts ---
+    plot_df = st.session_state.rec_df.groupby(["Scenario","Date"])["Adjusted Clicks"].sum().reset_index()
     st.subheader("Forecast KPIs")
     c1, c2 = st.columns(2)
     min_d, max_d = plot_df["Date"].min().date(), plot_df["Date"].max().date()
@@ -185,23 +159,20 @@ if tab_selection == "Dashboard":
     if end_date < start_date:
         st.error("End date must be on or after start date.")
     else:
-        mask   = (plot_df["Date"].dt.date>=start_date)&(plot_df["Date"].dt.date<=end_date)
+        mask = (plot_df["Date"].dt.date>=start_date)&(plot_df["Date"].dt.date<=end_date)
         totals = plot_df[mask].groupby("Scenario")["Adjusted Clicks"].sum().to_dict()
         m1,m2,m3 = st.columns(3)
-        m1.metric("High Forecast",   totals.get("High",0))
+        m1.metric("High Forecast", totals.get("High",0))
         m2.metric("Medium Forecast", totals.get("Medium",0))
-        m3.metric("Low Forecast",    totals.get("Low",0))
-
+        m3.metric("Low Forecast", totals.get("Low",0))
         fig = px.line(plot_df[mask], x="Date", y="Adjusted Clicks", color="Scenario", markers=True)
         fig.update_layout(title="Projected Traffic Scenarios Over Time", yaxis_title="Clicks")
         st.plotly_chart(fig, use_container_width=True)
-
         summ = plot_df[mask].copy()
-        summ["Month"]   = summ["Date"].dt.strftime("%b %Y")
+        summ["Month"] = summ["Date"].dt.strftime("%b %Y")
         summ["SortKey"] = summ["Date"]
-        pivot = (summ.pivot_table(index=["Month","SortKey"], columns="Scenario", values="Adjusted Clicks", aggfunc="sum")
-                 .reset_index().sort_values("SortKey").drop(columns="SortKey"))
-        pivot.columns.name = None
+        pivot = summ.pivot_table(index=["Month","SortKey"], columns="Scenario", values="Adjusted Clicks", aggfunc="sum").reset_index().sort_values("SortKey").drop(columns="SortKey")
+        pivot.columns.name=None
         st.subheader("Forecast Summary by Scenario")
         st.dataframe(pivot, use_container_width=True, hide_index=True)
 
@@ -209,8 +180,7 @@ if tab_selection == "Dashboard":
 if tab_selection == "Keyword Rank Tables":
     st.title("Keyword Rank Tables")
     df_full = st.session_state.rec_df.copy()
-    df_full['Period'] = df_full['Date'].dt.to_period('M')
-    df_full['Month']  = df_full['Period'].dt.to_timestamp()
+    df_full['Month'] = df_full['Date'].dt.to_period('M').dt.to_timestamp()
     scenario_selected = st.selectbox("Select Scenario", df_full['Scenario'].unique(), key="kw_scenario")
     filtered = df_full[df_full['Scenario']==scenario_selected]
     rank_tbl = filtered.pivot_table(
@@ -235,17 +205,15 @@ if tab_selection == "Project Summary":
             column_config={"Launch Date": st.column_config.DateColumn("Launch Date")},
             use_container_width=True, hide_index=True, key="proj_summary_edit"
         )
+        # medium-scenario clicks
         med = st.session_state.rec_df[st.session_state.rec_df['Scenario']=='Medium'].copy()
         med = med.sort_values(['Project','Date'])
         med['MonthIndex'] = med.groupby('Project').cumcount() + 1
         sums = med.groupby(['Project','MonthIndex'])['Adjusted Clicks'].sum().unstack(fill_value=0)
-        idx = sums.index
-        growth_3 = (sums[3] - sums[1]) if 3 in sums.columns else pd.Series(0, index=idx)
-        growth_6 = (sums[6] - sums[1]) if 6 in sums.columns else pd.Series(0, index=idx)
-        growth_9 = (sums[9] - sums[1]) if 9 in sums.columns else pd.Series(0, index=idx)
-        growth_3.name = '3mo Growth'
-        growth_6.name = '6mo Growth'
-        growth_9.name = '9mo Growth'
-        summary = edited.set_index('Project').join(pd.concat([growth_3, growth_6, growth_9], axis=1)).reset_index()
-        st.subheader("Click Growth (Medium Scenario)")
+        # cumulative sums
+        cum3 = sums.iloc[:, :3].sum(axis=1).rename('3mo Clicks')
+        cum6 = sums.iloc[:, :6].sum(axis=1).rename('6mo Clicks')
+        cum9 = sums.iloc[:, :9].sum(axis=1).rename('9mo Clicks')
+        summary = edited.set_index('Project').join(pd.concat([cum3,cum6,cum9], axis=1)).reset_index()
+        st.subheader("Launch & Medium-Scenario Clicks")
         st.dataframe(summary, use_container_width=True)
