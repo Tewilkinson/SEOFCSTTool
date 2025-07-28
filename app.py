@@ -45,19 +45,19 @@ if "rec_df" not in st.session_state:
     st.session_state.rec_df = pd.DataFrame()  # Initialize the rec_df for later use
 
 # --- Helpers ---
-def get_movement(msv):
-    """Base movement per month based on MSV difficulty."""
+def get_movement(msv, speed_factor=1.0):
+    """Base movement per month based on MSV difficulty and speed factor."""
     try:
         m = float(msv)
     except:
         m = 0.0
     if m <= 500:
-        return 1.5
+        return 1.5 * speed_factor
     if m <= 2000:
-        return 1.0
+        return 1.0 * speed_factor
     if m <= 10000:
-        return 0.75
-    return 1.0
+        return 0.75 * speed_factor
+    return 1.0 * speed_factor
 
 def get_ctr_for_position(pos):
     df = st.session_state.ctr_df
@@ -147,10 +147,14 @@ if tab_selection == "Dashboard":
                         cur_pos = 15
                     elif i > 1:
                         # determine phase multiplier
-                        if   cur_pos > 15: phase_mul = 3.0   # fast
-                        elif cur_pos >  6: phase_mul = 1.0   # medium
-                        else:               phase_mul = 0.5  # hard
-                        drift = get_movement(msv) * speed_factor * phase_mul
+                        if scenario == "High":
+                            speed_multiplier = 3.0  # Fastest rank change
+                        elif scenario == "Medium":
+                            speed_multiplier = 1.5  # Medium rank change
+                        else:
+                            speed_multiplier = 0.5  # Slowest rank change
+
+                        drift = get_movement(msv, speed_multiplier)  # Apply speed factor
                         cur_pos = max(1, cur_pos - drift)
 
                     pi = int(round(cur_pos))
@@ -193,37 +197,6 @@ if tab_selection == "Dashboard":
                .groupby(["Scenario","Date"])["Adjusted Clicks"]
                .sum().reset_index().rename(columns={"Adjusted Clicks":"Clicks"}))
 
-    # --- KPI Pickers & Charts ---
-    st.subheader("Forecast KPIs")
-    c1, c2 = st.columns(2)
-    min_d, max_d = plot_df["Date"].min().date(), plot_df["Date"].max().date()
-    with c1:
-        start_date = st.date_input("Start Date", min_value=min_d, max_value=max_d, value=min_d)
-    with c2:
-        end_date   = st.date_input("End Date",   min_value=min_d, max_value=max_d, value=max_d)
-    if end_date < start_date:
-        st.error("End date must be on or after start date.")
-    else:
-        mask   = (plot_df["Date"].dt.date>=start_date)&(plot_df["Date"].dt.date<=end_date)
-        totals = plot_df[mask].groupby("Scenario")["Clicks"].sum().to_dict()
-        m1,m2,m3 = st.columns(3)
-        m1.metric("High Forecast",   totals.get("High",0))
-        m2.metric("Medium Forecast", totals.get("Medium",0))
-        m3.metric("Low Forecast",    totals.get("Low",0))
-
-        fig = px.line(plot_df[mask], x="Date", y="Clicks", color="Scenario", markers=True)
-        fig.update_layout(title="Projected Traffic Scenarios Over Time")
-        st.plotly_chart(fig, use_container_width=True)
-
-        summ = plot_df[mask].copy()
-        summ["Month"]   = summ["Date"].dt.strftime("%b %Y")
-        summ["SortKey"] = summ["Date"]
-        pivot = (summ.pivot_table(index=["Month","SortKey"], columns="Scenario", values="Clicks", aggfunc="sum")
-                 .reset_index().sort_values("SortKey").drop(columns="SortKey"))
-        pivot.columns.name = None
-        st.subheader("Forecast Summary by Scenario")
-        st.dataframe(pivot, use_container_width=True, hide_index=True)
-
 # --- Keyword Rank Tables Tab ---
 if tab_selection == "Keyword Rank Tables":
     st.title("Keyword Rank Tables")
@@ -231,8 +204,10 @@ if tab_selection == "Keyword Rank Tables":
     # Retrieve the stored rec_df from session state
     rec_df = st.session_state.rec_df
 
-    # Convert date to simplified format (Jul-2025)
+    # Convert date to simplified format (Jul-2025) and sort by date
     rec_df['Month-Year'] = rec_df['Date'].dt.strftime('%b-%Y')
+    rec_df['Month-Year'] = pd.to_datetime(rec_df['Month-Year'], format='%b-%Y')
+    rec_df = rec_df.sort_values('Month-Year')
 
     # Dropdown to select scenario
     scenario_selected = st.selectbox("Select Scenario", rec_df['Scenario'].unique())
