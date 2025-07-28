@@ -1,8 +1,103 @@
-# --- Tabs ---
-tabs = st.tabs(["Dashboard", "Keyword Rank Tables", "Project Summary"])
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime
+from pandas import DateOffset
+import re
+
+# --- App Config ---
+st.set_page_config(page_title="SEO Forecast Tool", layout="wide", initial_sidebar_state="expanded")
+
+# --- Template Generator ---
+def create_template():
+    data = {
+        "Project": ["Example Project"],
+        "Keyword": ["shoes for men"],
+        "MSV": [12100],
+        "Current Position": [8],
+        "AI Overview": ["Yes"],
+        "Featured Snippet": ["No"],
+        "Current URL": ["https://example.com/shoes-for-men"]
+    }
+    return pd.DataFrame(data).to_csv(index=False).encode("utf-8")
+
+# --- Session State Init ---
+if "ctr_df" not in st.session_state:
+    st.session_state.ctr_df = pd.DataFrame({
+        "Position": list(range(1,11)),
+        "CTR":      [32,25,18,12,10,8,6,4,2,1]
+    })
+if "seasonality_df" not in st.session_state:
+    st.session_state.seasonality_df = pd.DataFrame({
+        "Month": [
+            "January","February","March","April","May","June",
+            "July","August","September","October","November","December"
+        ],
+        "Adjustment (%)": [0,0,0,0,0,-20,0,0,0,0,0,0]
+    })
+if "paid_listings" not in st.session_state:
+    st.session_state.paid_listings = {}
+if "df" not in st.session_state:
+    st.session_state.df = pd.DataFrame()
+if "launch_month_df" not in st.session_state:
+    st.session_state.launch_month_df = pd.DataFrame(columns=["Project","Launch Date"])
+
+# --- Helpers ---
+def get_movement(msv):
+    """Base movement per month based on MSV difficulty."""
+    try:
+        m = float(msv)
+    except:
+        m = 0.0
+    if m <= 500:
+        return 1.5
+    if m <= 2000:
+        return 1.0
+    if m <= 10000:
+        return 0.75
+    return 1.0
+
+def get_ctr_for_position(pos):
+    df = st.session_state.ctr_df
+    max_pos = df["Position"].max()
+    return float(df.loc[df["Position"] == pos, "CTR"].iloc[0]) if pos <= max_pos else 0.0
+
+# --- Sidebar ---
+with st.sidebar:
+    st.subheader("Download Template")
+    st.download_button("Download Template CSV", data=create_template(), file_name="forecast_template.csv")
+
+    st.subheader("CTR by Position")
+    st.session_state.ctr_df = st.data_editor(
+        st.session_state.ctr_df,
+        column_config={"CTR": st.column_config.NumberColumn("CTR (%)", min_value=0.0, max_value=100.0)},
+        use_container_width=True, hide_index=True, key="ctr_editor"
+    )
+
+    st.subheader("Seasonality by Month")
+    st.session_state.seasonality_df = st.data_editor(
+        st.session_state.seasonality_df,
+        column_config={"Adjustment (%)": st.column_config.NumberColumn("Adjustment (%)", min_value=-100.0, max_value=100.0)},
+        use_container_width=True, hide_index=True, key="season_editor"
+    )
+
+    fs_ctr  = st.number_input("Featured Snippet CTR (%)", min_value=0.0, max_value=100.0, value=18.0)
+    aio_ctr = st.number_input("AI Overview CTR (%)",      min_value=0.0, max_value=100.0, value=12.0)
+
+    st.subheader("Avg. Paid Listings per Project")
+    if not st.session_state.launch_month_df.empty:
+        proj = st.selectbox("Select Project for Paid Listings", st.session_state.launch_month_df["Project"].tolist(), key="paid_project_selector")
+        st.session_state.paid_listings[proj] = st.slider(f"{proj} Paid Listings", 0, 10, st.session_state.paid_listings.get(proj,2), key=f"paid_{proj}")
+
+    st.subheader("Ranking Speed")
+    speed_factor = st.slider("Speed multiplier (×)", min_value=0.1, max_value=5.0, value=1.0, step=0.1)
+
+# --- Tab Navigation with st.radio (for compatibility) ---
+tab_selection = st.radio("Select a Tab", ["Dashboard", "Keyword Rank Tables", "Project Summary"])
 
 # --- Dashboard Tab ---
-with tabs[0]:
+if tab_selection == "Dashboard":
     st.title("SEO Keyword FCSTin Tool")
     uploaded = st.file_uploader("Upload CSV or Excel", type=["csv","xlsx"])
     if not uploaded:
@@ -127,7 +222,7 @@ with tabs[0]:
         st.dataframe(pivot, use_container_width=True, hide_index=True)
 
 # --- Keyword Rank Tables Tab ---
-with tabs[1]:
+if tab_selection == "Keyword Rank Tables":
     st.title("Keyword Rank Tables")
     
     # Show the positions over time for each keyword based on the forecast scenarios.
@@ -136,7 +231,7 @@ with tabs[1]:
     st.dataframe(rank_table, use_container_width=True)
 
 # --- Project Summary Tab ---
-with tabs[2]:
+if tab_selection == "Project Summary":
     st.header("Project Launch & Forecast Summary")
     if st.session_state.df.empty:
         st.info("Run forecast first.")
