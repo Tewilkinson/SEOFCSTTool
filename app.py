@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 from datetime import datetime
 from pandas import DateOffset
 import re
@@ -232,8 +231,17 @@ if tab_selection == "Keyword Rank Tables":
     # Retrieve the stored rec_df from session state
     rec_df = st.session_state.rec_df
 
-    # Show the positions over time for each keyword based on the forecast scenarios.
-    rank_table = rec_df.pivot_table(index=["Project", "Keyword", "Scenario"], columns="Date", values="Position", aggfunc="mean")
+    # Convert date to simplified format (Jul-2025)
+    rec_df['Month-Year'] = rec_df['Date'].dt.strftime('%b-%Y')
+
+    # Dropdown to select scenario
+    scenario_selected = st.selectbox("Select Scenario", rec_df['Scenario'].unique())
+
+    # Filter data based on selected scenario
+    filtered_rank_table = rec_df[rec_df['Scenario'] == scenario_selected]
+
+    # Pivot table with simplified date format
+    rank_table = filtered_rank_table.pivot_table(index=["Project", "Keyword"], columns="Month-Year", values="Position", aggfunc="mean")
     st.subheader("Keyword Rank Progression")
     st.dataframe(rank_table, use_container_width=True)
 
