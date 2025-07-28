@@ -42,6 +42,8 @@ if "df" not in st.session_state:
     st.session_state.df = pd.DataFrame()
 if "launch_month_df" not in st.session_state:
     st.session_state.launch_month_df = pd.DataFrame(columns=["Project","Launch Date"])
+if "rec_df" not in st.session_state:
+    st.session_state.rec_df = pd.DataFrame()  # Initialize the rec_df for later use
 
 # --- Helpers ---
 def get_movement(msv):
@@ -186,6 +188,8 @@ if tab_selection == "Dashboard":
                 })
 
     rec_df  = pd.DataFrame(rec)
+    st.session_state.rec_df = rec_df  # Store rec_df in session state for later use
+
     plot_df = (rec_df
                .groupby(["Scenario","Date"])["Adjusted Clicks"]
                .sum().reset_index().rename(columns={"Adjusted Clicks":"Clicks"}))
@@ -225,6 +229,9 @@ if tab_selection == "Dashboard":
 if tab_selection == "Keyword Rank Tables":
     st.title("Keyword Rank Tables")
     
+    # Retrieve the stored rec_df from session state
+    rec_df = st.session_state.rec_df
+
     # Show the positions over time for each keyword based on the forecast scenarios.
     rank_table = rec_df.pivot_table(index=["Project", "Keyword", "Scenario"], columns="Date", values="Position", aggfunc="mean")
     st.subheader("Keyword Rank Progression")
