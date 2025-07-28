@@ -114,7 +114,6 @@ if tab_selection == "Dashboard":
             scen_mul = scenario_speed_map[scenario]
             for _, r in filtered.iterrows():
                 proj, msv, pos = r["Project"], r["MSV"], r["Current Position"]
-                url, kw = r.get("Current URL",""), r["Keyword"]
                 has_aio = str(r["AI Overview"]).lower()=="yes"
                 has_fs  = str(r["Featured Snippet"]).lower()=="yes"
                 launch  = launch_map.get(proj, base)
@@ -123,7 +122,8 @@ if tab_selection == "Dashboard":
                     date = base + DateOffset(months=i-1)
                     raw_clicks = adjusted_clicks = 0
                     if date >= launch:
-                        if i == 1 and cur_pos > 15: cur_pos = 15
+                        if i == 1 and cur_pos > 15:
+                            cur_pos = 15
                         elif i > 1:
                             phase_mul = 3.0 if cur_pos>15 else 1.0 if cur_pos>6 else 0.5
                             drift = get_movement(msv)*speed_factor*phase_mul*scen_mul
@@ -200,20 +200,24 @@ if tab_selection == "Project Summary":
     if st.session_state.df.empty:
         st.info("Run forecast first.")
     else:
+        # edit launch dates
         edited = st.data_editor(
             st.session_state.launch_month_df.reset_index(drop=True),
             column_config={"Launch Date": st.column_config.DateColumn("Launch Date")},
             use_container_width=True, hide_index=True, key="proj_summary_edit"
         )
-        # medium-scenario clicks
+        # aggregate medium scenario clicks by project and month
         med = st.session_state.rec_df[st.session_state.rec_df['Scenario']=='Medium'].copy()
-        med = med.sort_values(['Project','Date'])
-        med['MonthIndex'] = med.groupby('Project').cumcount() + 1
-        sums = med.groupby(['Project','MonthIndex'])['Adjusted Clicks'].sum().unstack(fill_value=0)
-        # cumulative sums
-        cum3 = sums.iloc[:, :3].sum(axis=1).rename('3mo Clicks')
-        cum6 = sums.iloc[:, :6].sum(axis=1).rename('6mo Clicks')
-        cum9 = sums.iloc[:, :9].sum(axis=1).rename('9mo Clicks')
-        summary = edited.set_index('Project').join(pd.concat([cum3,cum6,cum9], axis=1)).reset_index()
-        st.subheader("Launch & Medium-Scenario Clicks")
+        med_proj = med.groupby(['Project','Date'])['Adjusted Clicks'].sum().reset_index()
+        med_proj = med_proj.sort_values(['Project','Date'])
+        med_proj['MonthIndex'] = med_proj.groupby('Project').cumcount() + 1
+        proj_sums = med_proj.pivot(index='Project', columns='MonthIndex', values='Adjusted Clicks').fillna(0)
+        cum3 = proj_sums.loc[:, [i for i in proj_sums.columns if i<=3]].sum(axis=1).rename('3mo Clicks')
+        cum6 = proj_sums.loc[:, [i for i in proj_sums.columns if i<=6]].sum(axis=1).rename('6mo Clicks')
+        cum9 = proj_sums.loc[:, [i for i in proj_sums.columns if i<=9]].sum(axis=1).rename('9mo Clicks')
+        summary = edited.set_index('Project')
+        summary = summary.join(pd.concat([cum3, cum6, cum9], axis=1))
+        summary.reset_index(inplace=True)
+        # ensure Launch Date displays date only
+        summary['Launch Date'] = pd.to_datetime(summary['Launch Date']).dt.date
         st.dataframe(summary, use_container_width=True)
