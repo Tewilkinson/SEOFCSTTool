@@ -193,10 +193,6 @@ if tab_selection == "Dashboard":
     rec_df  = pd.DataFrame(rec)
     st.session_state.rec_df = rec_df  # Store rec_df in session state for later use
 
-    plot_df = (rec_df
-               .groupby(["Scenario","Date"])["Adjusted Clicks"]
-               .sum().reset_index().rename(columns={"Adjusted Clicks":"Clicks"}))
-
 # --- Keyword Rank Tables Tab ---
 if tab_selection == "Keyword Rank Tables":
     st.title("Keyword Rank Tables")
@@ -208,6 +204,9 @@ if tab_selection == "Keyword Rank Tables":
     rec_df['Month-Year'] = rec_df['Date'].dt.strftime('%b-%Y')
     rec_df['Month-Year'] = pd.to_datetime(rec_df['Month-Year'], format='%b-%Y')
     rec_df = rec_df.sort_values('Month-Year')
+
+    # Remove time component in date formatting
+    rec_df['Month-Year'] = rec_df['Month-Year'].dt.strftime('%b-%Y')
 
     # Dropdown to select scenario
     scenario_selected = st.selectbox("Select Scenario", rec_df['Scenario'].unique())
