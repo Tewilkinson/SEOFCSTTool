@@ -224,14 +224,14 @@ with tabs[1]:
 # --- Project Summary Tab ---
 with tabs[2]:
     st.title("Project Launch & Forecast Summary")
-    # require data and date range
+    # require data and dashboard end date
     if st.session_state.df.empty or 'end' not in st.session_state.endpoints:
         st.info("Upload data and select an End Date in the Dashboard to begin.")
     else:
         # calculate medium scenario clicks per project between launch and end_date
         rec_df = forecast_data()
         end_dt = pd.to_datetime(st.session_state.endpoints['end'])
-        # launch dates series
+        # map launch dates
         launch_series = pd.to_datetime(
             st.session_state.launch_month_df.set_index('Project')['Launch Date']
         )
@@ -243,13 +243,15 @@ with tabs[2]:
         # build summary dataframe
         summary_df = st.session_state.launch_month_df.copy()
         summary_df['Total Clicks'] = summary_df['Project'].map(clicks_sum).fillna(0).astype(int)
-        # ensure date type
-        summary_df['Launch Date'] = pd.to_datetime(summary_df['Launch Date']).dt.date
+        # ensure datetime dtype for calendar picker
+        summary_df['Launch Date'] = pd.to_datetime(summary_df['Launch Date'])
 
         st.subheader("Launch Dates & Forecasted Clicks")
-        # editable launch date, read-only clicks
+        # editable launch date (calendar), read-only clicks
         col_cfg = {
-            'Launch Date': st.column_config.DateColumn('Launch Date'),
+            'Launch Date': st.column_config.DateColumn(
+                'Launch Date', format="YYYY-MM-DD"
+            ),
             'Total Clicks': st.column_config.NumberColumn('Total Clicks', disabled=True)
         }
         edited = st.data_editor(
