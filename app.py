@@ -29,7 +29,8 @@ for key, default in [
     })),
     ("paid_listings", {}),
     ("df", pd.DataFrame()),
-    ("launch_month_df", pd.DataFrame(columns=["Project","Launch Date"]))
+    ("launch_month_df", pd.DataFrame(columns=["Project","Launch Date"])),
+    ("launch_dates", {})
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
