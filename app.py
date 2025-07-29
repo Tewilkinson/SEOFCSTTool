@@ -148,7 +148,8 @@ def forecast_data():
                     "Project": proj,
                     "Keyword": row["Keyword"],
                     "Date": date,
-                    "Clicks": round(clicks)
+                    "Clicks": round(clicks),
+                    "Position": rank
                 })
     return pd.DataFrame(records)
 
