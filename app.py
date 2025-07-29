@@ -217,7 +217,7 @@ with tabs[2]:
         rec_df=forecast_data()
         launch_map=st.session_state.launch_month_df.set_index('Project')['Launch Date']
         med=rec_df[rec_df['Scenario']=='Medium'].groupby(['Project','Date'])['Clicks'].sum().reset_index()
-        med['Launch']=med['Project'].map(launch_map)
+        med['Launch'] = pd.to_datetime(med['Project'].map(launch_map))
         med['MonthIndex']=((med['Date'].dt.year-med['Launch'].dt.year)*12 + (med['Date'].dt.month-med['Launch'].dt.month) +1)
         med=med[med['MonthIndex']>=1]
         cum3=med[med['MonthIndex']<=3].groupby('Project')['Clicks'].sum().rename('3mo Clicks')
