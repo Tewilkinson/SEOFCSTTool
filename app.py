@@ -84,6 +84,21 @@ with st.sidebar:
     st.subheader("Ranking Speed")
     speed_factor = st.slider("Speed multiplier", min_value=0.1, max_value=5.0, value=1.0, step=0.1)
 
+# --- Load Uploaded File ---
+if "uploaded_file" in st.session_state and st.session_state.df.empty:
+    file = st.session_state.uploaded_file
+    df = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
+    df["MSV"] = pd.to_numeric(df.get("MSV",0), errors="coerce").fillna(0)
+    df["Current Position"] = pd.to_numeric(df.get("Current Position",0), errors="coerce").fillna(0)
+    st.session_state.df = df
+    # initialize launch dates and paid listings
+    projects = df["Project"].dropna().unique().tolist()
+    st.session_state.launch_month_df = pd.DataFrame({
+        "Project": projects,
+        "Launch Date": [datetime.today().replace(day=1)] * len(projects)
+    })
+    st.session_state.paid_listings = {p: 2 for p in projects}
+
 # --- Forecast Function ---
 def forecast_data():
     df = st.session_state.df
