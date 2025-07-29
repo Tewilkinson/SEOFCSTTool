@@ -192,34 +192,38 @@ with tabs[2]:
     if st.session_state.df.empty or 'end' not in st.session_state.endpoints:
         st.info("Upload data and select an End Date in the Dashboard to begin.")
     else:
-        # Selector to pick a project and edit its launch date
+        # Project selector and date setter
         projects = st.session_state.launch_month_df['Project'].tolist()
-        selected = st.selectbox("Select Project to Edit Launch Date", projects)
-        # Get current launch date
-        current_date = st.session_state.launch_month_df.set_index('Project').at[selected, 'Launch Date']
-        new_date = st.date_input("Launch Date", pd.to_datetime(current_date).date())
-        if new_date != pd.to_datetime(current_date).date():
-            # Update in session state
+        selected = st.selectbox("Select Project to Edit", projects, key="proj_select")
+        # Show current mapped launch date
+        if selected not in st.session_state.launch_dates:
+            # initialize if missing
+            st.session_state.launch_dates[selected] = st.session_state.launch_month_df.set_index('Project').at[selected, 'Launch Date']
+        current_ld = st.session_state.launch_dates[selected]
+        new_ld = st.date_input("Set Launch Date for " + selected, pd.to_datetime(current_ld).date(), key="ld_picker")
+        # Only update on button click
+        if st.button("Apply Launch Date", key="set_launch_button"):
+            st.session_state.launch_dates[selected] = new_ld
             st.session_state.launch_month_df.loc[
-                st.session_state.launch_month_df['Project'] == selected,
+                st.session_state.launch_month_df['Project']==selected,
                 'Launch Date'
-            ] = new_date
+            ] = new_ld
 
-        # Recalculate medium scenario clicks based on updated launches and dashboard end_date
+        # Recalculate forecast sums
         rec_df = forecast_data()
         end_dt = pd.to_datetime(st.session_state.endpoints['end'])
-        launch_map = pd.to_datetime(
-            st.session_state.launch_month_df.set_index('Project')['Launch Date']
-        )
-        med = rec_df[rec_df['Scenario'] == 'Medium'].copy()
-        med['Launch'] = med['Project'].map(launch_map)
-        med = med[(med['Date'] >= med['Launch']) & (med['Date'] <= end_dt)]
-        clicks_sum = med.groupby('Project')['Clicks'].sum().rename('Total Clicks')
-
-        # Build summary table
-        summary_df = st.session_state.launch_month_df.copy()
-        summary_df['Launch Date'] = pd.to_datetime(summary_df['Launch Date']).dt.date
-        summary_df['Total Clicks'] = summary_df['Project'].map(clicks_sum).fillna(0).astype(int)
-
+        # Build total clicks per project
+        totals = {}
+        for proj, ld in st.session_state.launch_dates.items():
+            ld_ts = pd.to_datetime(ld)
+            subset = rec_df[(rec_df['Scenario']=='Medium') & (rec_df['Project']==proj)]
+            subset = subset[(subset['Date'] >= ld_ts) & (subset['Date'] <= end_dt)]
+            totals[proj] = subset['Clicks'].sum()
+        # Display summary table
+        summary_df = pd.DataFrame({
+            'Project': projects,
+            'Launch Date': [st.session_state.launch_dates[p] for p in projects],
+            'Total Clicks': [int(totals.get(p,0)) for p in projects]
+        })
         st.subheader("Summary Table")
         st.dataframe(summary_df, use_container_width=True)
