@@ -102,42 +102,60 @@ if "uploaded_file" in st.session_state and st.session_state.df.empty:
 # --- Forecast Function ---
 def forecast_data():
     df = st.session_state.df
+    # base month start
     base = datetime.today().replace(day=1)
-    launch_map = st.session_state.launch_month_df.set_index("Project")["Launch Date"].to_dict()
-    scen_map = {"High":1.5, "Medium":1.0, "Low":0.5}
+    # map project to launch timestamp
+    raw_map = st.session_state.launch_month_df.set_index("Project")["Launch Date"].to_dict()
+    launch_map = {}
+    for proj, ld in raw_map.items():
+        try:
+            # ensure pandas Timestamp
+            launch_map[proj] = pd.to_datetime(ld)
+        except:
+            # fallback to base if conversion fails
+            launch_map[proj] = base
+    scen_map = {"High": 1.5, "Medium": 1.0, "Low": 0.5}
     rec = []
-    for scen in ["High","Medium","Low"]:
+    for scen in ["High", "Medium", "Low"]:
         sm = scen_map[scen]
         for _, r in df.iterrows():
             proj, msv, pos = r["Project"], r["MSV"], r["Current Position"]
-            fs = str(r.get("Featured Snippet","")).lower()=="yes"
-            aio = str(r.get("AI Overview","")).lower()=="yes"
+            fs = str(r.get("Featured Snippet", "")).lower() == "yes"
+            aio = str(r.get("AI Overview", "")).lower() == "yes"
             launch = launch_map.get(proj, base)
             cp = pos
-            for m in range(1,25):
+            for m in range(1, 25):
                 date = base + DateOffset(months=m-1)
-                raw = adj = 0
+                raw_clicks = adj_clicks = 0
                 if date >= launch:
-                    if m==1 and cp>15:
-                        cp=15
-                    elif m>1:
-                        phase = 3 if cp>15 else 1 if cp>6 else 0.5
-                        cp = max(1, cp - get_movement(msv)*speed_factor*phase*sm)
+                    if m == 1 and cp > 15:
+                        cp = 15
+                    elif m > 1:
+                        phase = 3 if cp > 15 else 1 if cp > 6 else 0.5
+                        cp = max(1, cp - get_movement(msv) * speed_factor * phase * sm)
                     pi = int(round(cp))
-                    if pi<=st.session_state.ctr_df["Position"].max():
+                    if pi <= st.session_state.ctr_df["Position"].max():
                         ctr = get_ctr_for_position(pi)
-                        if scen=="Medium":
-                            ctr *= (1-0.05*st.session_state.paid_listings.get(proj,0))
-                            if pi==1 and aio: ctr=aio_ctr
-                            if pi==1 and fs: ctr=fs_ctr
-                        elif scen=="Low": ctr*=0.8
+                        if scen == "Medium":
+                            ctr *= (1 - 0.05 * st.session_state.paid_listings.get(proj, 0))
+                            if pi == 1 and aio: ctr = aio_ctr
+                            if pi == 1 and fs: ctr = fs_ctr
+                        elif scen == "Low":
+                            ctr *= 0.8
                         adj_pct = st.session_state.seasonality_df.loc[
-                            st.session_state.seasonality_df["Month"]==date.strftime("%B"),
+                            st.session_state.seasonality_df["Month"] == date.strftime("%B"),
                             "Adjustment (%)"
                         ].iloc[0]
-                        raw=(ctr/100)*msv
-                        adj=raw*(1+adj_pct/100)
-                rec.append({"Scenario":scen,"Project":proj,"Keyword":r["Keyword"],"Date":date,"Clicks":round(adj),"Position":cp})
+                        raw_clicks = (ctr / 100) * msv
+                        adj_clicks = raw_clicks * (1 + adj_pct / 100)
+                rec.append({
+                    "Scenario": scen,
+                    "Project": proj,
+                    "Keyword": r["Keyword"],
+                    "Date": date,
+                    "Clicks": round(adj_clicks),
+                    "Position": cp
+                })
     return pd.DataFrame(rec)
 
 # --- Tabs Layout ---
