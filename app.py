@@ -106,35 +106,37 @@ def forecast_data():
     df = st.session_state.df
     base = datetime.today().replace(day=1)
     # Convert launch dates to timestamps
-    launch_map = {
-        proj: pd.to_datetime(ld) for proj, ld in st.session_state.launch_month_df.values
-    }
+    launch_map = {proj: pd.to_datetime(ld) for proj, ld in st.session_state.launch_month_df.values}
     records = []
     for scen, sm in [("High", 1.5), ("Medium", 1.0), ("Low", 0.5)]:
         for _, row in df.iterrows():
             proj = row["Project"]
             msv = row["MSV"]
-            cp = row["Current Position"]
+            pos = row["Current Position"]
             has_fs = str(row.get("Featured Snippet", "")).lower() == "yes"
             has_aio = str(row.get("AI Overview", "")).lower() == "yes"
             launch_dt = launch_map.get(proj, base)
-            pos = cp
+            cur_pos = pos
             for month_index in range(1, 25):
                 date = base + DateOffset(months=month_index - 1)
                 clicks = 0
+                # compute movement and clicks only if after launch
                 if date >= launch_dt:
-                    if month_index == 1 and pos > 15:
-                        pos = 15
+                    if month_index == 1 and cur_pos > 15:
+                        cur_pos = 15
                     elif month_index > 1:
-                        phase = 3.0 if pos > 15 else 1.0 if pos > 6 else 0.5
-                        pos = max(1, pos - get_movement(msv) * speed_factor * phase * sm)
-                    rank = int(round(pos))
+                        phase = 3.0 if cur_pos > 15 else 1.0 if cur_pos > 6 else 0.5
+                        cur_pos = max(1, cur_pos - get_movement(msv) * speed_factor * phase * sm)
+                    # always define rank
+                    rank = int(round(cur_pos))
                     if rank <= st.session_state.ctr_df["Position"].max():
                         ctr = get_ctr_for_position(rank)
                         if scen == "Medium":
                             ctr *= (1 - 0.05 * st.session_state.paid_listings.get(proj, 0))
-                            if rank == 1 and has_aio: ctr = aio_ctr
-                            if rank == 1 and has_fs: ctr = fs_ctr
+                            if rank == 1 and has_aio:
+                                ctr = aio_ctr
+                            if rank == 1 and has_fs:
+                                ctr = fs_ctr
                         elif scen == "Low":
                             ctr *= 0.8
                         season_adj = st.session_state.seasonality_df.loc[
@@ -143,6 +145,9 @@ def forecast_data():
                         ].iloc[0]
                         raw_clicks = (ctr / 100) * msv
                         clicks = raw_clicks * (1 + season_adj / 100)
+                else:
+                    # before launch, rank remains current pos
+                    rank = int(round(cur_pos))
                 records.append({
                     "Scenario": scen,
                     "Project": proj,
