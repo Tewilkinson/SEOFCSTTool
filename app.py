@@ -242,12 +242,20 @@ with tabs[2]:
 
         summary_df = st.session_state.launch_month_df.copy()
         summary_df['Total Clicks'] = summary_df['Project'].map(clicks_sum).fillna(0).astype(int)
+        # ensure datetime64 for agDateCellEditor
         summary_df['Launch Date'] = pd.to_datetime(summary_df['Launch Date'])
 
         st.subheader("Launch Dates & Forecasted Clicks")
-        # Configure AgGrid for editable dates
+        # Configure AgGrid for editable dates with browser picker
         gb = GridOptionsBuilder.from_dataframe(summary_df)
-        gb.configure_column("Launch Date", editable=True, cellEditor='agDateCellEditor')
+        gb.configure_column(
+            "Launch Date",
+            editable=True,
+            cellEditor='agDateCellEditor',
+            cellEditorParams={'browserDatePicker': True},
+            type=["dateColumnFilter", "customDateTimeFormat"],
+            custom_format_string='yyyy-MM-dd'
+        )
         gb.configure_column("Total Clicks", editable=False)
         gb.configure_default_column(resizable=True, sortable=True)
         grid_options = gb.build()
@@ -260,6 +268,6 @@ with tabs[2]:
             fit_columns_on_grid_load=True,
             enable_enterprise_modules=False
         )
-        updated_df = grid_response['data']
-        # Save updated launch dates
-        st.session_state.launch_month_df['Launch Date'] = pd.to_datetime(updated_df['Launch Date']).dt.date
+        updated = grid_response['data']
+        # Save updated launch dates back to session state
+        st.session_state.launch_month_df['Launch Date'] = pd.to_datetime(updated['Launch Date']).dt.date
