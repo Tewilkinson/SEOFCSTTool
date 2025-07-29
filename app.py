@@ -227,26 +227,32 @@ with tabs[2]:
     if st.session_state.df.empty or 'end' not in st.session_state.endpoints:
         st.info("Upload data and select an End Date in the Dashboard to begin.")
     else:
+        # allow dynamic per-project launch date selection
+        st.subheader("Edit Launch Dates")
+        new_launches = {}
+        for idx, row in st.session_state.launch_month_df.iterrows():
+            proj = row['Project']
+            default = pd.to_datetime(row['Launch Date']).date()
+            selected = st.date_input(f"{proj} Launch Date", value=default, key=f"launch_{proj}")
+            new_launches[proj] = pd.to_datetime(selected)
+        # update session state
+        st.session_state.launch_month_df['Launch Date'] = st.session_state.launch_month_df['Project'].map(new_launches)
+
+        # recalc using updated launches and dashboard endpoints
         rec_df = forecast_data()
-        launch_map = {
-            proj: pd.to_datetime(ld)
-            for proj, ld in st.session_state.launch_month_df.values
-        }
         end_dt = pd.to_datetime(st.session_state.endpoints['end'])
         med = rec_df[rec_df['Scenario'] == 'Medium'].copy()
-        med['Launch'] = med['Project'].map(launch_map)
+        # map launch
+        med['Launch'] = med['Project'].map(new_launches)
+        # filter between launch and dashboard end
         med = med[(med['Date'] >= med['Launch']) & (med['Date'] <= end_dt)]
+        # sum clicks by project
         clicks_sum = med.groupby('Project')['Clicks'].sum().rename('Total Clicks')
-        summary = (
-            st.session_state.launch_month_df.set_index('Project')
-            .join(clicks_sum)
-            .reset_index()
-        )
-        summary['Launch Date'] = pd.to_datetime(summary['Launch Date']).dt.date
-        summary = st.data_editor(
-            summary,
-            column_config={'Launch Date': st.column_config.DateColumn()},
-            hide_index=True,
-            use_container_width=True
-        )
-        st.session_state.launch_month_df = summary[['Project', 'Launch Date']]
+        # build summary table
+        summary = pd.DataFrame({
+            'Project': clicks_sum.index,
+            'Total Clicks': clicks_sum.values,
+            'Launch Date': clicks_sum.index.map(lambda p: new_launches[p].date())
+        })
+        st.subheader("Forecasted Clicks per Project")
+        st.dataframe(summary, use_container_width=True)
