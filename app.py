@@ -224,34 +224,36 @@ with tabs[1]:
 # --- Project Summary Tab ---
 with tabs[2]:
     st.title("Project Launch & Forecast Summary")
+    # require data and dashboard end date
     if st.session_state.df.empty or 'end' not in st.session_state.endpoints:
-        st.info("Upload data and select an End Date in the Dashboard to begin.")
+        st.info("Upload data and set End Date in Dashboard to enable Project Summary.")
     else:
-        # Editable launch date table with calendar picker
-        st.subheader("Launch Dates")
-        launch_df = st.data_editor(
-            st.session_state.launch_month_df,
-            column_config={"Launch Date": st.column_config.DateColumn("Launch Date")},
-            hide_index=True,
-            use_container_width=True,
-            key="launch_editor"
-        )
-        # Store edits
-        st.session_state.launch_month_df = launch_df.copy()
-
-        # Recalculate forecast totals based on edited dates and dashboard end_date
+        # compute dynamic summary
         rec_df = forecast_data()
         end_dt = pd.to_datetime(st.session_state.endpoints['end'])
-        med = rec_df[rec_df['Scenario'] == 'Medium'].copy()
-        launch_map = pd.to_datetime(st.session_state.launch_month_df.set_index('Project')['Launch Date'])
-        med['Launch'] = med['Project'].map(lambda p: launch_map.get(p, pd.to_datetime(end_dt)))
+        # map launch dates
+        launch_series = pd.to_datetime(st.session_state.launch_month_df.set_index('Project')['Launch Date'])
+        # filter and sum
+        med = rec_df[rec_df['Scenario']=='Medium'].copy()
+        med['Launch'] = med['Project'].map(launch_series)
         med = med[(med['Date'] >= med['Launch']) & (med['Date'] <= end_dt)]
         clicks_sum = med.groupby('Project')['Clicks'].sum().rename('Total Clicks')
-
-        # Combine summary
-        summary_df = launch_df.set_index('Project').join(clicks_sum).reset_index()
+        # build summary df with editable launch
+        summary_df = st.session_state.launch_month_df.set_index('Project').join(clicks_sum).reset_index()
         summary_df['Launch Date'] = pd.to_datetime(summary_df['Launch Date']).dt.date
         summary_df['Total Clicks'] = summary_df['Total Clicks'].fillna(0).astype(int)
-
-        st.subheader("Forecasted Clicks per Project")
-        st.dataframe(summary_df, use_container_width=True)
+        # single data_editor: only Launch Date editable, Total Clicks read-only
+        col_opts = {
+            'Launch Date': st.column_config.DateColumn('Launch Date'),
+            'Total Clicks': st.column_config.NumberColumn('Total Clicks', disabled=True)
+        }
+        edited = st.data_editor(
+            summary_df,
+            column_config=col_opts,
+            hide_index=True,
+            use_container_width=True,
+            key='proj_summary'
+        )
+        # save updated launches
+        st.session_state.launch_month_df['Launch Date'] = edited['Launch Date']
+        # dashboard will automatically pick up new deadlines on next run
