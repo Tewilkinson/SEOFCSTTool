@@ -222,44 +222,44 @@ with tabs[1]:
         st.dataframe(rank_table, use_container_width=True)
 
 # --- Project Summary Tab ---
+from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
+
 with tabs[2]:
     st.title("Project Launch & Forecast Summary")
-    # require data and dashboard end date
     if st.session_state.df.empty or 'end' not in st.session_state.endpoints:
         st.info("Upload data and select an End Date in the Dashboard to begin.")
     else:
-        # calculate medium scenario clicks per project between launch and end_date
+        # Prepare summary data
         rec_df = forecast_data()
         end_dt = pd.to_datetime(st.session_state.endpoints['end'])
-        # map launch dates
         launch_series = pd.to_datetime(
             st.session_state.launch_month_df.set_index('Project')['Launch Date']
         )
-        med = rec_df[rec_df['Scenario'] == 'Medium'].copy()
+        med = rec_df[rec_df['Scenario']=='Medium'].copy()
         med['Launch'] = med['Project'].map(launch_series)
         med = med[(med['Date'] >= med['Launch']) & (med['Date'] <= end_dt)]
         clicks_sum = med.groupby('Project')['Clicks'].sum().rename('Total Clicks')
 
-        # build summary dataframe
         summary_df = st.session_state.launch_month_df.copy()
         summary_df['Total Clicks'] = summary_df['Project'].map(clicks_sum).fillna(0).astype(int)
-        # ensure datetime dtype for calendar picker
         summary_df['Launch Date'] = pd.to_datetime(summary_df['Launch Date'])
 
         st.subheader("Launch Dates & Forecasted Clicks")
-        # editable launch date (calendar), read-only clicks
-        col_cfg = {
-            'Launch Date': st.column_config.DateColumn(
-                'Launch Date', format="YYYY-MM-DD"
-            ),
-            'Total Clicks': st.column_config.NumberColumn('Total Clicks', disabled=True)
-        }
-        edited = st.data_editor(
+        # Configure AgGrid for editable dates
+        gb = GridOptionsBuilder.from_dataframe(summary_df)
+        gb.configure_column("Launch Date", editable=True, cellEditor='agDateCellEditor')
+        gb.configure_column("Total Clicks", editable=False)
+        gb.configure_default_column(resizable=True, sortable=True)
+        grid_options = gb.build()
+
+        grid_response = AgGrid(
             summary_df,
-            column_config=col_cfg,
-            hide_index=True,
-            use_container_width=True,
-            key='proj_summary'
+            gridOptions=grid_options,
+            data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+            update_mode=GridUpdateMode.VALUE_CHANGED,
+            fit_columns_on_grid_load=True,
+            enable_enterprise_modules=False
         )
-        # save updated launches
-        st.session_state.launch_month_df['Launch Date'] = edited['Launch Date']
+        updated_df = grid_response['data']
+        # Save updated launch dates
+        st.session_state.launch_month_df['Launch Date'] = pd.to_datetime(updated_df['Launch Date']).dt.date
