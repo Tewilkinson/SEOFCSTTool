@@ -229,45 +229,56 @@ with tabs[2]:
     if st.session_state.df.empty or 'end' not in st.session_state.endpoints:
         st.info("Upload data and select an End Date in the Dashboard to begin.")
     else:
-        # Prepare summary data
+        # Build base summary with editable launch dates
+        summary_df = st.session_state.launch_month_df.copy()
+        # ensure datetime for editor
+        summary_df['Launch Date'] = pd.to_datetime(summary_df['Launch Date'])
+        # Calculate total clicks to display read-only
         rec_df = forecast_data()
         end_dt = pd.to_datetime(st.session_state.endpoints['end'])
-        launch_series = pd.to_datetime(
-            st.session_state.launch_month_df.set_index('Project')['Launch Date']
-        )
         med = rec_df[rec_df['Scenario']=='Medium'].copy()
-        med['Launch'] = med['Project'].map(launch_series)
-        med = med[(med['Date'] >= med['Launch']) & (med['Date'] <= end_dt)]
+        launch_map = pd.to_datetime(summary_df.set_index('Project')['Launch Date'])
+        med['Launch'] = med['Project'].map(launch_map)
+        med = med[(med['Date']>=med['Launch']) & (med['Date']<=end_dt)]
         clicks_sum = med.groupby('Project')['Clicks'].sum().rename('Total Clicks')
-
-        summary_df = st.session_state.launch_month_df.copy()
         summary_df['Total Clicks'] = summary_df['Project'].map(clicks_sum).fillna(0).astype(int)
-        # ensure datetime64 for agDateCellEditor
-        summary_df['Launch Date'] = pd.to_datetime(summary_df['Launch Date'])
 
-        st.subheader("Launch Dates & Forecasted Clicks")
-        # Configure AgGrid for editable dates with browser picker
+        st.subheader("Edit Launch Dates")
+        # Configure AgGrid
         gb = GridOptionsBuilder.from_dataframe(summary_df)
         gb.configure_column(
-            "Launch Date",
+            'Launch Date',
             editable=True,
             cellEditor='agDateCellEditor',
             cellEditorParams={'browserDatePicker': True},
-            type=["dateColumnFilter", "customDateTimeFormat"],
+            type=['dateColumnFilter', 'customDateTimeFormat'],
             custom_format_string='yyyy-MM-dd'
         )
-        gb.configure_column("Total Clicks", editable=False)
+        gb.configure_column('Total Clicks', editable=False)
         gb.configure_default_column(resizable=True, sortable=True)
-        grid_options = gb.build()
-
+        grid_opts = gb.build()
         grid_response = AgGrid(
             summary_df,
-            gridOptions=grid_options,
+            gridOptions=grid_opts,
             data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
             update_mode=GridUpdateMode.VALUE_CHANGED,
             fit_columns_on_grid_load=True,
             enable_enterprise_modules=False
         )
-        updated = grid_response['data']
-        # Save updated launch dates back to session state
+        updated = pd.DataFrame(grid_response['data'])
+        # Update session state
         st.session_state.launch_month_df['Launch Date'] = pd.to_datetime(updated['Launch Date']).dt.date
+
+        # Recalc summary based on updated launch dates and show result
+        rec_df = forecast_data()
+        med = rec_df[rec_df['Scenario']=='Medium'].copy()
+        launch_map = pd.to_datetime(st.session_state.launch_month_df.set_index('Project')['Launch Date'])
+        med['Launch'] = med['Project'].map(launch_map)
+        med = med[(med['Date']>=med['Launch']) & (med['Date']<=end_dt)]
+        clicks_sum = med.groupby('Project')['Clicks'].sum().rename('Total Clicks')
+        result_df = st.session_state.launch_month_df.copy()
+        result_df['Total Clicks'] = result_df['Project'].map(clicks_sum).fillna(0).astype(int)
+        result_df['Launch Date'] = pd.to_datetime(result_df['Launch Date']).dt.date
+
+        st.subheader("Forecasted Clicks by Project")
+        st.dataframe(result_df, use_container_width=True)
